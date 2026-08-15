@@ -1,6 +1,6 @@
 /site/public/
 /site/resources/_gen/
-/.hugo_build.lock
+/site/.hugo_build.lock
 *.log
 *.tar
 *.tar.gz
