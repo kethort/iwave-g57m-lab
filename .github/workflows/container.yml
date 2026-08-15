@@ -34,7 +34,7 @@ jobs:
           images: ghcr.io/kethort/iwave-g57m-lab
           tags: |
             type=ref,event=tag
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
 
       - name: Build and publish image
         uses: docker/build-push-action@v6
