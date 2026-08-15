@@ -1,0 +1,40 @@
+baseURL = "https://kethort.github.io/iwave-g57m-lab/"
+locale = "en-US"
+title = "Versal AI Edge Lab Notes"
+enableRobotsTXT = true
+
+[params]
+  author = "Ken Orton"
+  description = "Independent field notes for iWave G57M and AMD Versal AI Edge board bring-up."
+  github = "https://github.com/kethort/iwave-g57m-lab"
+
+[permalinks]
+  posts = "/notes/:slug/"
+
+[taxonomies]
+  tag = "tags"
+  category = "categories"
+
+[markup]
+  [markup.highlight]
+    noClasses = false
+    lineNos = true
+  [markup.goldmark.renderer]
+    unsafe = false
+
+[[menus.main]]
+  name = "Start Here"
+  pageRef = "/start-here"
+  weight = 10
+[[menus.main]]
+  name = "Lab Notes"
+  pageRef = "/posts"
+  weight = 20
+[[menus.main]]
+  name = "Reference"
+  pageRef = "/reference"
+  weight = 30
+[[menus.main]]
+  name = "About"
+  pageRef = "/about"
+  weight = 40

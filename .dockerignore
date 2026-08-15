@@ -1,0 +1,8 @@
+*
+!Dockerfile
+!docker-entrypoint.sh
+!qt_boot_gui
+!jtag_config.json
+!qspi_config.json
+!LICENSES/
+!LICENSES/THIRD_PARTY_NOTICES.md

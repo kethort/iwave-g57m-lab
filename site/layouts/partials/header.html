@@ -1,0 +1,9 @@
+<header class="site-header">
+  <a class="brand" href="{{ site.Home.RelPermalink }}">
+    <span class="brand-mark">VE</span>
+    <span><strong>{{ site.Title }}</strong><small>IWAVE G57M / VITIS 2025.2</small></span>
+  </a>
+  <nav aria-label="Primary navigation">
+    {{ range site.Menus.main }}<a href="{{ .URL }}"{{ if $.IsMenuCurrent "main" . }} class="active"{{ end }}>{{ .Name }}</a>{{ end }}
+  </nav>
+</header>

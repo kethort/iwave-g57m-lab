@@ -1,0 +1,8 @@
+/site/public/
+/site/resources/_gen/
+/.hugo_build.lock
+*.log
+*.tar
+*.tar.gz
+*.tar.xz
+!qt_boot_gui
