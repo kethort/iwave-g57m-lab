@@ -109,6 +109,7 @@ not included in the image.
 | [Container setup](docs/container-setup.md) | Vitis discovery, mounts, startup checks, and launching the GUI |
 | [JTAG workflows](docs/jtag-workflows.md) | TFTP, NFS, Full-PDI boot, and target diagnostics |
 | [QSPI provisioning](docs/qspi-provisioning.md) | Custom PLM images, flash layout, staging, and provisioning |
+| [U-Boot environment](docs/u-boot-environment.md) | Persistent boot selection, QSPI environment layout, and verification |
 | [Configuration](docs/configuration.md) | Startup JSON files, container paths, and generated output |
 | [Troubleshooting](docs/troubleshooting.md) | X11, Vitis, hw_server, TFTP, and path failures |
 | [Release process](docs/releasing.md) | Container publication, Pages deployment, and checksums |
@@ -119,8 +120,9 @@ Review the selected flash device, capacity, erase size, partition offsets, and
 payload paths before programming QSPI. The handoff DTB used by the temporary
 JTAG-booted U-Boot must enable and describe the QSPI controller and flash. Verify
 that U-Boot's `sf probe` succeeds and reports the expected device before allowing
-an erase or write. Do not interrupt power or JTAG while a flash erase, write, or
-verification operation is active.
+an erase or write. Its compiled environment offset and size must also match the
+GUI's QSPI environment partition. Do not interrupt power or JTAG while a flash
+erase, write, or verification operation is active.
 
 ## Licensing
 

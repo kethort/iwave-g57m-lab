@@ -62,6 +62,18 @@ topology. If it reports no controller or flash, correct the handoff DTB or U-Boo
 driver configuration first. Changing GUI offsets cannot make an undetected QSPI
 device available.
 
+## U-Boot Environment Prerequisite
+
+The U-Boot build must load its persistent environment from the same QSPI offset
+and size configured under **QSPI Partition Layout**. The complete provisioning
+operation exports the environment with the running U-Boot, writes it to that
+slot, and installs `modeboot=qspiboot`. Other QSPI operation buttons do not all
+replace the persistent environment and may depend on an existing or
+compiled-default boot command.
+
+Review [U-Boot environment](u-boot-environment.md) before choosing an operation,
+especially when provisioning a blank device or changing the flash layout.
+
 ## Layout Generation
 
 **Calculate / validate layout and generate JSON** uses payload sizes, erase
@@ -80,7 +92,7 @@ Review every offset and slot size against the physical flash before continuing.
 | **Prepare TFTP assets only** | Generates scripts and stages payloads without running XSDB. |
 | **Flash Linux components directly** | Uses host flash tooling for Linux payload partitions. |
 | **Provision image.ub flow** | Installs the alternative single-FIT layout. |
-| **Install QSPI TFTP boot** | Installs QSPI U-Boot configured to load Linux over TFTP. |
+| **Install QSPI TFTP boot** | Flashes QSPI U-Boot and its TFTP-oriented script; the existing/default environment must select that persistent path. |
 | **JTAG boot U-Boot + provision all QSPI partitions** | Runs the complete reconstructed-PDI and U-Boot provisioning flow. |
 
 Monitor both **Preview & Logs** and the board serial console. Do not interrupt

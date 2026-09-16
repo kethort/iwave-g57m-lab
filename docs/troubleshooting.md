@@ -77,6 +77,24 @@ If probing fails, confirm that:
 The Linux DTB payload is not used to initialize QSPI for the provisioning U-Boot.
 Updating only that DTB will not fix an `sf probe` failure.
 
+## QSPI Images Are Present But The Wrong Mode Boots
+
+Interrupt autoboot and inspect the persistent selection:
+
+```text
+printenv bootcmd modeboot qspiboot
+```
+
+The complete component provisioning flow expects `bootcmd=run $modeboot` and
+`modeboot=qspiboot`. If U-Boot reports a bad environment CRC, falls back to its
+defaults, or selects `netfitboot`, verify that its compiled environment backend,
+offset, and size match the GUI's environment partition. Also confirm that the
+chosen GUI operation actually installs an environment; several direct-flash
+operations intentionally preserve the existing one.
+
+See [U-Boot environment](u-boot-environment.md) for the operation matrix and
+post-provision checks.
+
 ## A JSON Path Is Missing
 
 Only `$WORKSPACE`, `$TFTP_ROOT`, and `$XILINX_ROOT` are mounted. Move the file
