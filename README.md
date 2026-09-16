@@ -116,8 +116,11 @@ not included in the image.
 ## Safety
 
 Review the selected flash device, capacity, erase size, partition offsets, and
-payload paths before programming QSPI. Do not interrupt power or JTAG while a
-flash erase, write, or verification operation is active.
+payload paths before programming QSPI. The handoff DTB used by the temporary
+JTAG-booted U-Boot must enable and describe the QSPI controller and flash. Verify
+that U-Boot's `sf probe` succeeds and reports the expected device before allowing
+an erase or write. Do not interrupt power or JTAG while a flash erase, write, or
+verification operation is active.
 
 ## Licensing
 

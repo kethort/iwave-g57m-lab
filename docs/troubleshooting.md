@@ -56,6 +56,27 @@ Confirm that:
 - the host firewall permits TFTP traffic;
 - the board and host have a valid network route.
 
+## U-Boot Cannot Detect QSPI
+
+Stop before erasing or writing flash and test from the U-Boot prompt:
+
+```text
+sf probe
+```
+
+If probing fails, confirm that:
+
+- the handoff DTB in **Explicit PDI Components** enables and describes the QSPI
+  controller and flash;
+- the temporary JTAG provisioning PDI was rebuilt after changing that DTB;
+- U-Boot includes the required SPI controller and SPI flash drivers;
+- pinctrl, clocks, compatible strings, chip-selects, bus width, frequency, and
+  stacked/parallel flash properties match the board;
+- the detected capacity and topology match the layout selected in the GUI.
+
+The Linux DTB payload is not used to initialize QSPI for the provisioning U-Boot.
+Updating only that DTB will not fix an `sf probe` failure.
+
 ## A JSON Path Is Missing
 
 Only `$WORKSPACE`, `$TFTP_ROOT`, and `$XILINX_ROOT` are mounted. Move the file

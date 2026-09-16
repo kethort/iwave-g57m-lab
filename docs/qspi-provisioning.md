@@ -38,6 +38,30 @@ its configured QSPI partition.
 The QSPI custom PLM is baked into the generated BOOT image. If the PLM changes,
 regenerate the custom BOOT image before provisioning.
 
+## Device Tree Prerequisite
+
+The QSPI controller and attached flash must be enabled and correctly described
+in the **handoff DTB used by the temporary JTAG-booted U-Boot**. This is commonly
+the extracted `system-top.dtb` selected under **Explicit PDI Components**. It is
+separate from the Linux `system.dtb` payload that is later written to QSPI, so
+enabling QSPI only in the Linux device tree is not sufficient for provisioning.
+
+The U-Boot device tree must provide the board-appropriate controller status,
+pinctrl, clocks, flash child node, compatible string, chip-select, bus width,
+frequency, and stacked/parallel topology. U-Boot must also be built with the
+matching SPI controller and SPI flash drivers.
+
+Before the first erase or write, interrupt U-Boot autoboot and run:
+
+```text
+sf probe
+```
+
+Proceed only when the command detects the expected QSPI device, capacity, and
+topology. If it reports no controller or flash, correct the handoff DTB or U-Boot
+driver configuration first. Changing GUI offsets cannot make an undetected QSPI
+device available.
+
 ## Layout Generation
 
 **Calculate / validate layout and generate JSON** uses payload sizes, erase
