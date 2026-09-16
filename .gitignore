@@ -5,5 +5,4 @@
 *.tar
 *.tar.gz
 *.tar.xz
-qt-boot-gui.env
 !qt_boot_gui

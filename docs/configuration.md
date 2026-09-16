@@ -1,26 +1,20 @@
 # Configuration
 
-On first setup, the launcher copies separate editable startup configurations to:
+The image contains separate startup templates for JTAG and QSPI:
 
 ```text
-$WORKSPACE/configs/jtag_config.json
-$WORKSPACE/configs/qspi_config.json
+/opt/qt-boot-gui/configs/jtag_config.json
+/opt/qt-boot-gui/configs/qspi_config.json
 ```
 
-They appear in the container and GUI as:
+They are loaded automatically and are read-only. To load editable host files at
+startup, place them under `WORKSPACE` and export container-visible paths:
 
-```text
-/work/configs/jtag_config.json
-/work/configs/qspi_config.json
+```bash
+export QT_BOOT_GUI_JTAG_CONFIG=/work/configs/jtag_config.json
+export QT_BOOT_GUI_QSPI_CONFIG=/work/configs/qspi_config.json
+./run-container.sh
 ```
-
-The generated `qt-boot-gui.env` selects these files automatically. The image
-also contains read-only fallback templates under `/opt/qt-boot-gui/configs`.
-Existing workspace configurations are never overwritten by setup or launch.
-
-Machine-specific launcher values are stored in the repository-local,
-Git-ignored `qt-boot-gui.env`. Copy `qt-boot-gui.env.example` to create it
-manually, or run `./setup-host.sh`. Explicit shell variables take precedence.
 
 ## Path Mapping
 

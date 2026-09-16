@@ -71,38 +71,36 @@ Requirements:
 - Linux x86-64 with X11 or XWayland
 - Docker Engine
 - AMD Vitis 2025.2 installed on the host
-- AMD/Xilinx JTAG cable drivers and udev rules
-- A host `tftpd-hpa` service and writable TFTP root
+- A host TFTP service and writable TFTP root
 - A Versal target connected through JTAG
 
-Run the one-time host setup. It detects Vitis, initializes a persistent
-workspace and editable configurations, checks cable support and TFTP, and pulls
-the published image:
+Build the image from this repository:
 
 ```bash
-./setup-host.sh --pull
+./build-image.sh
 ```
 
-Resolve any reported `FAIL` items, then validate the container tools without
-requiring X11, TFTP, `hw_server`, or a connected board:
+Or use the published image:
 
 ```bash
+docker pull ghcr.io/kethort/iwave-g57m-lab:latest
+export IMAGE_NAME=ghcr.io/kethort/iwave-g57m-lab:latest
+```
+
+Point the launcher at Vitis, your artifact workspace, and the host TFTP root:
+
+```bash
+export VITIS_SETTINGS=/development/2025.2/Vitis/settings64.sh
+export WORKSPACE="$HOME/versal-lab-data"
+export TFTP_ROOT=/srv/tftp
+
 QT_BOOT_GUI_CHECK_ONLY=1 ./run-container.sh
-```
-
-Connect the board, verify JTAG discovery, and launch:
-
-```bash
-./diagnose-jtag.sh
 ./run-container.sh
 ```
 
-Machine-specific values are stored in the ignored `qt-boot-gui.env` file, so
-they do not need to be exported for each shell. The launcher prefers a locally
-built image when available and otherwise pulls the published GHCR image. It
-starts host `hw_server` when needed, mounts Vitis read-only, maps the workspace
-to `/work`, and displays the containerized GUI through X11. Vitis is not
-included in the image.
+The launcher starts host `hw_server` when needed, mounts Vitis read-only, maps
+`WORKSPACE` to `/work`, and displays the containerized GUI through X11. Vitis is
+not included in the image.
 
 ## Documentation
 
