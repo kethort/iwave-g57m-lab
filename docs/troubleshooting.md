@@ -1,5 +1,18 @@
 # Troubleshooting
 
+## Run The Host Preflight
+
+Start with:
+
+```bash
+./setup-host.sh
+QT_BOOT_GUI_CHECK_ONLY=1 ./run-container.sh
+```
+
+The first command checks host services, permissions, cable support, and saved
+paths. The second checks the container and toolchain without requiring graphics,
+TFTP, `hw_server`, or a connected board.
+
 ## Vitis Tools Are Missing
 
 ```bash
@@ -7,7 +20,20 @@ QT_BOOT_GUI_CHECK_ONLY=1 ./run-container.sh
 ```
 
 Confirm `VITIS_SETTINGS` names a readable Vitis 2025.2 `settings64.sh` and that
-the discovered installation root contains both `Vitis/` and `Vivado/`.
+the discovered installation root contains the files referenced by that script.
+Save nonstandard paths in `qt-boot-gui.env` rather than exporting them in every
+terminal.
+
+## The Container Image Is Missing
+
+The launcher prefers a local `qt-boot-gui:2025.2` development image and
+otherwise pulls `ghcr.io/kethort/iwave-g57m-lab:latest`. To force a selection:
+
+```bash
+IMAGE_NAME=ghcr.io/kethort/iwave-g57m-lab:latest ./run-container.sh
+```
+
+Set `ALLOW_IMAGE_PULL=0` only when an automatic network pull is undesirable.
 
 ## JTAG Connection Fails
 
@@ -16,12 +42,16 @@ the discovered installation root contains both `Vitis/` and `Vivado/`.
 ss -ltn | grep 3121
 ```
 
-The launcher normally starts `hw_server`. Its log is stored at
-`~/.qt-boot-gui-container/hw_server.log`.
+The diagnostic and launcher both start a temporary local `hw_server` when
+needed. Its log is stored at `~/.qt-boot-gui-container/hw_server.log`.
 
 - `Connection refused`: no server is listening at the configured URL.
 - `Available targets: none`: the server is reachable but sees no JTAG chain.
 - PMC selection failure: inspect the diagnostic's complete target list.
+
+For no-target failures, verify that the board is powered and in JTAG boot mode,
+then run `./setup-host.sh` and inspect its cable-rule and `lsusb` results. Install
+the cable drivers bundled with Vitis/Vivado when the udev rules are absent.
 
 ## The GUI Does Not Appear
 
@@ -31,11 +61,15 @@ ls -l "${XAUTHORITY:-$HOME/.Xauthority}"
 ls -ld /tmp/.X11-unix
 ```
 
-If necessary, grant X11 access to the current local user:
+The launcher first discovers common Xorg, GDM, and XWayland authorization files.
+If none is readable, it temporarily grants restricted access to the current
+local user. To test that fallback manually:
 
 ```bash
 xhost +SI:localuser:"$(id -un)"
 ```
+
+Check-only mode does not use X11 and should work from a non-graphical shell.
 
 ## TFTP Staging Fails
 
@@ -100,3 +134,8 @@ post-provision checks.
 Only `$WORKSPACE`, `$TFTP_ROOT`, and `$XILINX_ROOT` are mounted. Move the file
 under the workspace or deliberately choose a broader workspace. Avoid mounting
 the entire home directory merely to expose one artifact.
+
+The first setup seeds editable JSON files under `$WORKSPACE/configs`. Their
+default artifact paths expect a Yocto-style tree under `/work/build`. Either
+place the artifacts in that layout or update the JSON/GUI fields to their actual
+container-visible `/work/...` paths.
