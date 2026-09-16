@@ -8,6 +8,8 @@ The **JTAG Modes** page supports three independent boot paths.
 | `jtag-nfs` | U-Boot downloads the kernel and DTB, then Linux mounts an NFS root. |
 | `jtag-full-pdi` | Bootgen reconstructs a PDI containing the selected boot components and RAM-resident payload. |
 
+![JTAG networking, reconstructed PDI inputs, and execution controls](images/jtag-workflow.png)
+
 ## Before Running
 
 1. Connect the board and JTAG cable.
@@ -32,6 +34,8 @@ Starting either operation switches to **Preview & Logs**. Review:
 - output from `mkimage` and `bootgen`;
 - the generated XSDB target-selection commands;
 - target connection and programming results.
+
+![Execution log, command preview, and resolved configuration](images/execution-log.png)
 
 ## Diagnose JTAG
 

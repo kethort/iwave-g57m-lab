@@ -9,11 +9,30 @@ validation, generated command previews, and live execution logs.
 The public release contains a stripped Linux x86-64 executable and its container
 packaging. C++ and QML source code are maintained separately.
 
-<!--
-Add docs/images/overview.png here after the final screenshots are captured:
+<p align="center">
+  <img src="docs/images/overview.png" alt="Versal Boot GUI JTAG workflow overview" width="100%">
+</p>
 
-![Versal Boot GUI workflow overview](docs/images/overview.png)
--->
+<details>
+<summary><strong>More interface screenshots</strong></summary>
+
+### JTAG Inputs And Execution
+
+![JTAG networking, reconstructed PDI inputs, and execution controls](docs/images/jtag-workflow.png)
+
+### QSPI Inputs
+
+![QSPI configuration, custom PLM, payloads, and PDI components](docs/images/qspi-workflow1.png)
+
+### QSPI Layout And Operations
+
+![QSPI partition layout and provisioning operations](docs/images/qspi-workflow2.png)
+
+### Preview And Logs
+
+![Execution log, command preview, and resolved configuration](docs/images/execution-log.png)
+
+</details>
 
 ## Highlights
 

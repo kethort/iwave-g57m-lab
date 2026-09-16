@@ -4,6 +4,8 @@ The **QSPI Provisioning** page recreates the boot-and-provision operation that
 was previously driven by `--jtag-provision-qspi-components` and explicit
 `--full-pdi-*` arguments.
 
+![QSPI configuration, custom PLM, payloads, and PDI components](images/qspi-workflow1.png)
+
 ## Provisioning Path
 
 ```mermaid
@@ -44,6 +46,8 @@ produce `qspi_flash_config.generated.json`. It loads the result into the QSPI
 page but does not write flash and never overwrites `qspi_config.json`.
 
 Review every offset and slot size against the physical flash before continuing.
+
+![QSPI partition layout and provisioning operations](images/qspi-workflow2.png)
 
 ## Operations
 
