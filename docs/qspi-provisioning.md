@@ -1,99 +1,348 @@
 # QSPI Provisioning
 
-The **QSPI Provisioning** page recreates the boot-and-provision operation that
-was previously driven by `--jtag-provision-qspi-components` and explicit
-`--full-pdi-*` arguments.
+The **QSPI Provisioning** page supports persistent flash operations. Its
+complete provisioning action recreates the former
+`--jtag-provision-qspi-components` flow: a temporary PDI starts U-Boot over
+JTAG, then U-Boot downloads and writes the permanent QSPI contents.
 
 ![QSPI configuration, custom PLM, payloads, and PDI components](images/qspi-workflow1.png)
 
-## Provisioning Path
+## Two Images With Different Jobs
+
+The complete flow uses two boot images that must not be confused:
+
+| Image | Contents and purpose | Lifetime |
+| --- | --- | --- |
+| `BOOT-custom-plm.bin` (or selected QSPI `BOOT.bin`) | Permanent Versal boot image written at QSPI offset `0x0`. Its contents are defined by the original Yocto `bootgen.bif`; the custom build substitutes the selected QSPI PLM. | Persists in QSPI. |
+| Temporary JTAG provisioning PDI, commonly `BOOT_JTAG_IMAGEUB.pdi` | Base design PDI, QSPI PLM, PSM, handoff DTB, TF-A, U-Boot, and the one-time `provision-qspi.scr`. | Loaded by XSDB for the current session only. It is not the image stored at QSPI offset `0x0`. |
+
+The kernel, Linux DTB, rootfs, and permanent boot script are not embedded in
+the temporary provisioning PDI. U-Boot downloads them from TFTP and writes them
+to separate QSPI partitions.
+
+## Tool Responsibilities
+
+| Tool | Role in QSPI workflows |
+| --- | --- |
+| `mkimage -T script` | Converts each readable `.cmd` command list into a checksummed `.scr` U-Boot script image. |
+| `bootgen` | Builds `BOOT-custom-plm.bin` from the Yocto BIF, or builds the temporary JTAG provisioning PDI from `qspi_provision.bif`. It constructs images only; it does not flash QSPI. |
+| `xsdb` | Loads the temporary provisioning PDI over JTAG. In the complete flow, U-Boot then performs the QSPI writes. |
+| `program_flash` | Performs direct host-driven persistent QSPI writes for the direct-flash, image.ub, and TFTP-boot install actions. |
+| U-Boot `sf` commands | Probe, erase, write, read back, and verify QSPI during the complete JTAG-assisted provisioning flow. |
+| `mkenvimage` | Builds a CRC-bearing environment image for the assets-only path. The complete provisioning flow instead uses the running U-Boot's `env export`. |
+
+## Which File Defines Which Layout
+
+“Partition” is used at several layers, but the layers are not interchangeable:
+
+| Layer | Layout source | Builder/writer | Meaning |
+| --- | --- | --- | --- |
+| Permanent `BOOT.bin` internals | Yocto-extracted `bootgen.bif`, or generated `bootgen-custom-plm.bif` | `bootgen` | Boot-image partitions such as platform boot data, PLM, PSM, TF-A, and U-Boot. Exact contents come from the source BIF. |
+| Temporary provisioning PDI | Generated `qspi_provision.bif` | `bootgen` | Components needed to start the temporary U-Boot session over JTAG, plus the provisioning script's RAM address. |
+| FIT `image.ub` internals | `image.ub.its` | `mkimage -f` | Kernel, Linux DTB, ramdisk, hashes, and FIT configurations. Used only by the alternative single-FIT flow or FIT-based JTAG modes. |
+| Physical QSPI map | QSPI JSON offsets and slot sizes | U-Boot `sf` commands or host `program_flash` | Persistent byte ranges for BOOT, environment, Linux DTB, kernel, rootfs, and boot script. |
+
+Bootgen is therefore used to construct boot containers, but **Bootgen does not
+lay out the separate Linux files in QSPI**. The QSPI JSON defines those
+physical offsets. The one-time U-Boot script applies them with `sf erase` and
+`sf write`, or the direct-flash actions pass them to `program_flash`.
+
+### Temporary provisioning BIF layout
+
+The complete JTAG-assisted action generates a BIF equivalent to:
+
+```text
+the_ROM_image:
+{
+    image
+    {
+        { type=bootimage, file=<base-design.pdi> }
+        { type=bootloader, file=<qspi-custom-plm.elf> }
+        { core=psm, file=<psmfw.elf> }
+    }
+    image
+    {
+        id=0x1c000000, name=apu_ss
+        { type=raw, load=0x1000, file=<system-top.dtb> }
+        { core=a72-0, exception_level=el-3, trustzone, file=<bl31.elf> }
+        { core=a72-0, exception_level=el-2, file=<u-boot.elf> }
+        { type=raw, load=0x20000000, file=<provision-qspi.scr> }
+    }
+}
+```
+
+Bootgen turns this recipe into the temporary PDI consumed by XSDB. There is no
+kernel, Linux DTB, rootfs, or permanent `BOOT.bin` payload in this BIF. Once
+U-Boot is running, it obtains those files from TFTP and writes the physical
+QSPI map.
+
+### When Bootgen runs
+
+| GUI operation | Bootgen use |
+| --- | --- |
+| **Generate custom BOOT image** | Yes. Builds `BOOT-custom-plm.bin` from `bootgen-custom-plm.bif`. |
+| **JTAG boot U-Boot + provision all QSPI partitions** | Yes. It may first generate the custom BOOT image, then always builds the temporary provisioning PDI from `qspi_provision.bif`. |
+| **Prepare TFTP assets only** | Only if a custom BOOT image must be generated automatically; otherwise no. |
+| **Flash Linux components directly** | Only if a custom BOOT image must be generated automatically; the persistent writes themselves use `program_flash`. |
+| **Provision image.ub flow** | Only if a custom BOOT image must be generated automatically. `mkimage`, not Bootgen, creates `image.ub` and `boot.scr`. |
+| **Install QSPI TFTP boot** | Only if a custom BOOT image must be generated automatically; the persistent writes use `program_flash`. |
+
+## Required Source Files
+
+### Permanent QSPI boot image
+
+- A source Yocto `boot.bin`.
+- Its extracted BIF, normally
+  `boot.bin-extracted/bootgen.bif` next to the source image.
+- The QSPI-specific custom `plm.elf`, when replacing the stock PLM.
+
+### Temporary provisioning PDI
+
+- Base design PDI (`base-design.pdi` or selected equivalent).
+- QSPI custom PLM ELF.
+- PSM firmware ELF.
+- ATF/BL31 ELF.
+- U-Boot ELF.
+- Handoff DTB, normally extracted `system-top.dtb`.
+- Generated one-time `provision-qspi.scr`.
+
+### Persistent Linux partitions
+
+- Uncompressed kernel `Image`.
+- Linux `system.dtb`.
+- Rootfs/initramfs image, normally a `.cpio.gz`.
+- Generated permanent `qspi-boot.scr`.
+- Generated persistent U-Boot environment.
+
+The handoff DTB in the temporary PDI configures hardware for firmware and
+U-Boot. The Linux `system.dtb` is a different file written to the Linux DTB
+partition and passed to the kernel.
+
+## Generating `BOOT-custom-plm.bin`
+
+**Generate custom BOOT image** does not invent a new boot layout. It preserves
+the source Yocto boot recipe and replaces its PLM entry:
+
+1. The GUI locates `boot.bin-extracted/bootgen.bif` beside the selected source
+   `boot.bin`.
+2. It copies the BIF to `bootgen-custom-plm.bif` in the output directory.
+3. It replaces `file=plmfw.elf` or `file=plm.elf` with the selected absolute
+   QSPI custom PLM path.
+4. It runs:
+
+```bash
+bootgen -arch versal -image bootgen-custom-plm.bif \
+  -w -o BOOT-custom-plm.bin
+```
+
+The command runs with the original BIF directory as its working directory so
+the other relative file references still resolve. The resulting binary
+contains the partitions named by that BIF, typically the platform boot data,
+PLM, PSM firmware, TF-A, and U-Boot. Inspect the actual BIF when an exact
+partition inventory is required.
+
+The BIF is only a host-side recipe. The board receives the generated
+`BOOT-custom-plm.bin`, not the BIF. Changing the QSPI PLM requires regenerating
+and reflashing the BOOT image. The JTAG-page custom PLM is a separate setting
+and does not modify this QSPI image.
+
+## U-Boot Command And Script Files
+
+The GUI intentionally keeps `.cmd` and `.scr` as separate artifacts:
+
+- `.cmd` is readable U-Boot shell text.
+- `.scr` is that text wrapped in a U-Boot legacy script-image header with
+  metadata and checksums.
+
+Each conversion uses:
+
+```bash
+mkimage -A arm64 -T script -C none \
+  -n "<script name>" -d <input.cmd> <output.scr>
+```
+
+The `.scr` is not a compiled CPU executable. U-Boot verifies the image header
+and executes the contained commands with `source` or the board's configured
+autoboot path.
+
+### Permanent `qspi-boot.cmd` / `qspi-boot.scr`
+
+This script is stored in the QSPI script partition for normal boots. It:
+
+1. Sets kernel, DTB, and rootfs RAM addresses.
+2. Sets their QSPI offsets and exact payload sizes.
+3. Sets the resolved Linux `bootargs`.
+4. Runs `sf probe`.
+5. Reads the three independent payloads from QSPI into RAM with `sf read`.
+6. Starts Linux with
+   `booti <kernel> <rootfs-address>:<rootfs-size> <dtb>`.
+
+### One-time `provision-qspi.cmd` / `provision-qspi.scr`
+
+This script is embedded in the temporary JTAG PDI at `0x20000000`. It:
+
+1. Sets U-Boot Ethernet, TFTP, RAM-work-area, partition offset, and slot-size
+   variables.
+2. Probes QSPI with `sf probe` and exits on failure.
+3. TFTP-downloads `BOOT.bin`, `Image`, `system.dtb`, the rootfs, and permanent
+   `qspi-boot.scr` into separate RAM addresses.
+4. Records each `${filesize}`, checks expected Linux payload sizes, and
+   calculates a RAM CRC.
+5. Erases and writes the kernel, DTB, rootfs, and permanent boot-script slots.
+6. Reads every written payload back and compares its CRC.
+7. Writes and verifies `BOOT.bin` **last**, reducing the chance that an earlier
+   payload failure destroys the previously bootable image at offset `0x0`.
+8. Creates the persistent environment with the running U-Boot, writes and
+   verifies its QSPI slot, and resets the board.
+
+## Complete JTAG-Assisted Provisioning
+
+Use **JTAG boot U-Boot + provision all QSPI partitions** for the operation that
+matches the former Python command with
+`--jtag-provision-qspi-components --require-explicit-pdi-inputs`.
 
 ```mermaid
 flowchart TD
-    A[Load QSPI JSON] --> B[Select custom PLM and extracted PDI components]
-    B --> C[Build custom BOOT image]
-    C --> D[Calculate and validate partition layout]
-    D --> E[Stage payloads in TFTP root]
-    E --> F[JTAG boot temporary U-Boot PDI]
-    F --> G[U-Boot downloads each payload]
-    G --> H[Erase, write, and verify QSPI partitions]
+    A[Load QSPI JSON and explicit PDI files] --> B[Generate or select BOOT.bin]
+    B --> C[Build permanent and one-time U-Boot scripts]
+    C --> D[Stage BOOT.bin, Image, Linux DTB, rootfs, and scripts in TFTP]
+    D --> E[Build temporary provisioning PDI with bootgen]
+    E --> F[Load temporary PDI with XSDB]
+    F --> G[U-Boot downloads all persistent payloads]
+    G --> H[U-Boot erases, writes, reads back, and CRC-verifies QSPI]
+    H --> I[U-Boot exports and writes its environment, then resets]
 ```
 
-The temporary JTAG image starts U-Boot. U-Boot then downloads BOOT.bin, kernel,
-Linux DTB, rootfs, environment, and scripts over TFTP and writes each payload to
-its configured QSPI partition.
+### Host-side preparation
 
-## Required Inputs
+The GUI first validates the fixed IWG57M partition offsets and verifies that
+each file fits its configured slot. It generates and stages:
 
-- QSPI configuration JSON
-- Base design PDI
-- QSPI-specific custom PLM ELF
-- PSM firmware
-- ATF / BL31 ELF
-- U-Boot ELF
-- Handoff DTB
-- Kernel image, Linux DTB, and rootfs/initramfs
-- Host TFTP root and U-Boot network settings
+| TFTP file | Destination in the complete flow |
+| --- | --- |
+| Selected/generated `BOOT.bin` | QSPI BOOT slot, normally offset `0x00000000`. |
+| `Image` | Kernel partition. |
+| Linux `system.dtb` | Linux DTB partition. |
+| Rootfs/initramfs | Rootfs partition. |
+| `qspi-boot.scr` | Permanent script partition. |
+| `provision-qspi.scr` | Also staged for inspection/manual use; the active copy is embedded in the temporary PDI. |
 
-The QSPI custom PLM is baked into the generated BOOT image. If the PLM changes,
-regenerate the custom BOOT image before provisioning.
+### Temporary PDI construction
 
-## Device Tree Prerequisite
+The GUI writes `qspi_provision.bif`. Its APU image includes the handoff DTB at
+`0x1000`, TF-A at EL3, U-Boot at EL2, and `provision-qspi.scr` at
+`0x20000000`. It then runs:
 
-The QSPI controller and attached flash must be enabled and correctly described
-in the **handoff DTB used by the temporary JTAG-booted U-Boot**. This is commonly
-the extracted `system-top.dtb` selected under **Explicit PDI Components**. It is
-separate from the Linux `system.dtb` payload that is later written to QSPI, so
-enabling QSPI only in the Linux device tree is not sufficient for provisioning.
-
-The U-Boot device tree must provide the board-appropriate controller status,
-pinctrl, clocks, flash child node, compatible string, chip-select, bus width,
-frequency, and stacked/parallel topology. U-Boot must also be built with the
-matching SPI controller and SPI flash drivers.
-
-Before the first erase or write, interrupt U-Boot autoboot and run:
-
-```text
-sf probe
+```bash
+bootgen -arch versal -image qspi_provision.bif \
+  -w -o <temporary-jtag-pdi>
 ```
 
-Proceed only when the command detects the expected QSPI device, capacity, and
-topology. If it reports no controller or flash, correct the handoff DTB or U-Boot
-driver configuration first. Changing GUI offsets cannot make an undetected QSPI
-device available.
+### JTAG handoff and actual flash write
 
-## U-Boot Environment Prerequisite
+The generated `program_qspi_provision.tcl` connects to the configured
+`hw_server`, selects the PMC, resets the system, and runs:
 
-The U-Boot build must load its persistent environment from the same QSPI offset
-and size configured under **QSPI Partition Layout**. The complete provisioning
-operation exports the environment with the running U-Boot, writes it to that
-slot, and installs `modeboot=qspiboot`. Other QSPI operation buttons do not all
-replace the persistent environment and may depend on an existing or
-compiled-default boot command.
+```tcl
+device program "<temporary-jtag-pdi>"
+```
 
-Review [U-Boot environment](u-boot-environment.md) before choosing an operation,
-especially when provisioning a blank device or changing the flash layout.
+`xsdb` ends after handing execution to the temporary image. From that point,
+watch the serial console: **U-Boot**, not XSDB or Bootgen, performs the TFTP
+downloads and `sf erase`/`sf write`/`sf read`/CRC operations.
 
-## Layout Generation
+## Persistent U-Boot Environment
+
+The complete operation creates the environment with the same U-Boot binary
+that will later consume it:
+
+- `bootcmd=run $modeboot`
+- `modeboot=qspiboot`
+- `qspiboot`, containing `sf probe`, three `sf read` commands, `bootargs`, and
+  the final `booti`
+- resolved `bootargs`
+- networking and layout variables established during provisioning
+
+U-Boot runs `env export -c -s <slot-size> <RAM-address>` to create the
+CRC-protected binary representation, then erases, writes, reads back, and
+CRC-verifies the environment slot.
+
+The U-Boot build must use a compatible SPI-flash environment backend and the
+same location and size. Review settings such as `CONFIG_ENV_IS_IN_SPI_FLASH`,
+`CONFIG_ENV_OFFSET`, `CONFIG_ENV_SIZE`, flash bus/chip-select settings, and any
+redundant-environment configuration. The GUI writes one environment slot.
+See [U-Boot environment](u-boot-environment.md) for validation commands and the
+behavior of every GUI operation.
+
+## Other QSPI Operations
+
+The buttons are not aliases for the complete flow:
+
+| Operation | Files and tools used | Result |
+| --- | --- | --- |
+| **Prepare TFTP assets only** | Generates permanent and staging `.cmd`/`.scr` files, creates `qspi-env.txt`, attempts `mkenvimage` for `qspi.env`, and copies BOOT, Linux payloads, scripts, and environment to TFTP. | No `bootgen` provisioning PDI, XSDB, `program_flash`, or QSPI write. Treat `qspi.env` as valid only when `mkenvimage` succeeded. |
+| **Flash Linux components directly** | Generates permanent `qspi-boot.scr`, then invokes `program_flash` separately for BOOT, kernel, Linux DTB, rootfs, and script at their configured offsets. Each call uses the selected BOOT image with `-pdi` and connects to `hw_server`. | Persistent component layout, but no new persistent environment. |
+| **Provision image.ub flow** | Generates a TFTP-to-QSPI `boot.scr`, stages `image.ub`, and uses `program_flash` to write BOOT and that script. | On execution, the script TFTP-downloads one FIT, writes it to the configured FIT slot, and boots it; if TFTP fails it tries the existing QSPI FIT. It does not use separate kernel/DTB/rootfs partitions. |
+| **Install QSPI TFTP boot** | Requires JTAG TFTP mode, generates the normal TFTP `boot.scr`, optionally stages `image.ub`, and uses `program_flash` for BOOT and optionally the script. | Persistent BOOT plus a network-oriented script; the existing/default environment must select that script or boot path. |
+| **JTAG boot U-Boot + provision all QSPI partitions** | Uses both `bootgen` and `xsdb` for the temporary boot, followed by U-Boot TFTP and `sf` commands. | Complete separate-partition layout plus persistent environment. |
+
+`program_flash` is the direct host-flashing path. The GUI supplies the target
+file, offset, flash type, optional density, selected BOOT image through `-pdi`,
+and the `hw_server` URL. These direct operations do not use the generated XSDB
+TCL from the complete flow.
+
+## Device Tree And U-Boot Requirements
+
+The QSPI controller and flash must be enabled in the **handoff DTB used by the
+temporary JTAG-booted U-Boot**, normally extracted `system-top.dtb`. Enabling
+QSPI only in the Linux `system.dtb` is not sufficient for provisioning.
+
+The handoff DTB must describe the board-appropriate controller status, pinctrl,
+clocks, flash child node, compatible string, chip select, bus width, frequency,
+and stacked/parallel topology. U-Boot must include matching SPI-controller and
+SPI-flash drivers plus the commands used by the scripts:
+
+- `sf probe`, `sf erase`, `sf write`, and `sf read`;
+- Ethernet and `tftpboot`;
+- `crc32`, `test`, and environment export support;
+- `source`/legacy script-image support;
+- `booti` for the separate component layout;
+- `bootm` and FIT support for the alternative `image.ub` layout.
+
+Before any destructive operation, interrupt autoboot and verify that `sf probe`
+detects the expected device, capacity, and topology. GUI offsets cannot make an
+undetected flash device usable.
+
+## Layout And Safety
 
 **Calculate / validate layout and generate JSON** uses payload sizes, erase
 alignment, flash capacity, reserved boundaries, and configured headroom to
 produce `qspi_flash_config.generated.json`. It loads the result into the QSPI
-page but does not write flash and never overwrites `qspi_config.json`.
+page but does not write flash and never overwrites `qspi_config.json` unless the
+user explicitly chooses that output path.
 
-Review every offset and slot size against the physical flash before continuing.
+The complete IWG57M all-partitions action currently requires this 256 MiB QSPI
+map:
+
+| QSPI content | Offset | Slot size | Produced from |
+| --- | --- | --- | --- |
+| Permanent `BOOT.bin` | `0x00000000` | `0x00a00000` | Selected or custom-PLM BOOT image. |
+| U-Boot environment | `0x00a00000` | `0x00010000` | `env export` from the temporary U-Boot session. |
+| Linux DTB | `0x00a20000` | `0x00060000` | Selected Linux `system.dtb`. |
+| Kernel | `0x00a80000` | `0x02600000` | Selected uncompressed `Image`. |
+| Rootfs/initramfs | `0x03080000` | `0x0cf00000` | Selected rootfs image. |
+| Permanent U-Boot script | `0x0ff80000` | `0x00080000` | Generated `qspi-boot.scr`. |
+
+The gap after the environment and all slot padding are intentional layout
+space, not additional input files. Erases operate on configured slot sizes,
+while writes use the actual downloaded file sizes.
+
+Review every offset and slot size against the physical flash. The complete
+IWG57M provisioning action also enforces the expected board offsets and refuses
+to run when they differ.
 
 ![QSPI partition layout and provisioning operations](images/qspi-workflow2.png)
 
-## Operations
-
-| Operation | Behavior |
-| --- | --- |
-| **Prepare TFTP assets only** | Generates scripts and stages payloads without running XSDB. |
-| **Flash Linux components directly** | Uses host flash tooling for Linux payload partitions. |
-| **Provision image.ub flow** | Installs the alternative single-FIT layout. |
-| **Install QSPI TFTP boot** | Flashes QSPI U-Boot and its TFTP-oriented script; the existing/default environment must select that persistent path. |
-| **JTAG boot U-Boot + provision all QSPI partitions** | Runs the complete reconstructed-PDI and U-Boot provisioning flow. |
-
 Monitor both **Preview & Logs** and the board serial console. Do not interrupt
-power, JTAG, or networking during erase/write/verify operations.
+power, JTAG, TFTP service, networking, or `hw_server` during erase/write/verify
+operations.
