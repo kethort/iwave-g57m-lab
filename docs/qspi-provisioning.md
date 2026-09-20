@@ -309,9 +309,120 @@ SPI-flash drivers plus the commands used by the scripts:
 - `booti` for the separate component layout;
 - `bootm` and FIT support for the alternative `image.ub` layout.
 
-Before any destructive operation, interrupt autoboot and verify that `sf probe`
-detects the expected device, capacity, and topology. GUI offsets cannot make an
-undetected flash device usable.
+### Check QSPI From U-Boot
+
+U-Boot is the authoritative place to debug the provisioning path because the
+temporary JTAG image runs U-Boot and U-Boot performs the `sf` operations. Stop
+autoboot and begin with non-destructive commands:
+
+```text
+help sf
+help fdt
+help dm
+printenv fdtcontroladdr
+```
+
+`fdtcontroladdr` is the address of the control device tree used by U-Boot's
+driver model. Select the control tree and inspect its aliases:
+
+```text
+fdt addr -c
+fdt print /aliases
+```
+
+On an older U-Boot without the `fdt addr -c` form, use
+`fdt addr ${fdtcontroladdr}` instead. The control tree is the important one for
+determining why a U-Boot driver did or did not bind.
+
+Find the alias or node path corresponding to the QSPI/SPI controller, then
+print that node. The exact path is platform-dependent; do not assume a generic
+`/spi@...` address:
+
+```text
+fdt print <qspi-controller-node-path>
+```
+
+Verify that the controller has `status = "okay"` (or no `status` property),
+and that it contains the expected flash child node. Check the child's
+`compatible`, `reg`/chip-select, `spi-max-frequency`, bus-width properties, and
+stacked or parallel-flash properties against the board design.
+
+Next, inspect U-Boot's bound devices:
+
+```text
+dm tree
+```
+
+Look for the QSPI/SPI controller and its SPI-NOR child. Some U-Boot builds also
+provide these useful views:
+
+```text
+dm uclass spi
+dm uclass mtd
+mtd list
+```
+
+Commands that report `Unknown command` are simply not enabled in that U-Boot
+build; `dm tree` and `sf probe` remain the primary checks. Finally, probe the
+flash without modifying it:
+
+```text
+sf probe
+```
+
+A successful `sf probe` should identify the SPI-NOR device and report a
+capacity consistent with the configured QSPI size and topology. Do not run
+`sf erase`, `sf write`, or any destructive flash test until this succeeds.
+
+Use the failure point to narrow the problem:
+
+| Result | Likely problem area |
+| --- | --- |
+| No QSPI node, or the node is disabled | The wrong handoff DTB was included in the temporary PDI, or the DTB was built without the QSPI enablement. |
+| Node is enabled, but no controller appears in `dm tree` | Missing U-Boot driver/Kconfig support, a failed driver bind/probe, or unresolved clocks, resets, pinctrl, or dependencies. |
+| Controller appears, but `sf probe` fails | Flash child-node compatibility, chip select, bus width, frequency, stacked/parallel topology, pinmux, wiring, or power. |
+| `sf probe` succeeds with the wrong capacity | Incorrect flash compatible/topology or only one device in a stacked/parallel arrangement was detected. Do not use the generated offsets yet. |
+| `sf probe` succeeds with the expected device and capacity | Device-tree and basic U-Boot QSPI access are ready for the provisioning script. |
+
+### Check QSPI From Linux
+
+Linux can provide a secondary hardware check after the board boots:
+
+```bash
+dmesg | grep -Ei 'qspi|spi-nor|spi|mtd'
+find /sys/firmware/devicetree/base \( -iname '*qspi*' -o -iname '*spi*' \) -print
+find /sys/bus/spi/devices -mindepth 1 -maxdepth 1 -print
+cat /proc/mtd
+ls -l /dev/mtd* 2>/dev/null
+```
+
+If `mtd-utils` is installed, this gives a more detailed inventory:
+
+```bash
+mtdinfo -a
+```
+
+For a node found under `/sys/firmware/devicetree/base`, inspect string
+properties after removing their terminating NUL bytes:
+
+```bash
+NODE='/sys/firmware/devicetree/base/replace/with/qspi-node-path'
+FLASH_NODE="$NODE/replace-with-flash-child-name"
+test -r "$NODE/status" && tr -d '\0' < "$NODE/status" || echo okay
+tr -d '\0' < "$FLASH_NODE/compatible"; echo
+```
+
+An absent `status` property normally means enabled. A controller node in the
+live tree without an MTD device generally means the Linux driver did not bind
+or the flash probe failed; inspect `dmesg` for the reason.
+
+Linux uses the Linux `system.dtb`, not necessarily the handoff/control DTB used
+by the temporary U-Boot PDI. Linux detection proves that the hardware and Linux
+description can work, but it does **not** prove that the U-Boot handoff DTB or
+U-Boot driver configuration is correct. Successful U-Boot `sf probe` is the
+required check for this GUI's JTAG-assisted QSPI provisioning flow.
+
+GUI offsets cannot make an undetected flash device usable.
 
 ## Layout And Safety
 
