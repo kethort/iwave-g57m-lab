@@ -167,7 +167,8 @@ autoboot path.
 
 ### Permanent `qspi-boot.cmd` / `qspi-boot.scr`
 
-This script is stored in the QSPI script partition for normal boots. It:
+This script is stored in the QSPI script slot and can be used by a boot
+environment that loads and sources it. It:
 
 1. Sets kernel, DTB, and rootfs RAM addresses.
 2. Sets their QSPI offsets and exact payload sizes.
@@ -176,6 +177,11 @@ This script is stored in the QSPI script partition for normal boots. It:
 5. Reads the three independent payloads from QSPI into RAM with `sf read`.
 6. Starts Linux with
    `booti <kernel> <rootfs-address>:<rootfs-size> <dtb>`.
+
+The complete all-partitions flow installs an equivalent `qspiboot` command
+directly in the persistent environment, so that particular environment does
+not need to load or source `qspi-boot.scr`. The script remains a generated,
+flashed artifact for explicit script-based boot paths and recovery use.
 
 ### One-time `provision-qspi.cmd` / `provision-qspi.scr`
 
@@ -323,16 +329,19 @@ printenv fdtcontroladdr
 ```
 
 `fdtcontroladdr` is the address of the control device tree used by U-Boot's
-driver model. Select the control tree and inspect its aliases:
+driver model. Configure that address as the working FDT for these read-only
+inspection commands, then print its aliases:
 
 ```text
-fdt addr -c
+fdt addr ${fdtcontroladdr}
 fdt print /aliases
 ```
 
-On an older U-Boot without the `fdt addr -c` form, use
-`fdt addr ${fdtcontroladdr}` instead. The control tree is the important one for
-determining why a U-Boot driver did or did not bind.
+On the U-Boot build used by this project, `fdt addr -c` only reports the
+control-FDT address; it does not configure the working address consumed by
+`fdt print`. That produces `No FDT memory address configured` if no working FDT
+was already selected. Do not use `fdt set`, `fdt rm`, or other modifying
+commands while inspecting the control tree.
 
 Find the alias or node path corresponding to the QSPI/SPI controller, then
 print that node. The exact path is platform-dependent; do not assume a generic
@@ -341,6 +350,16 @@ print that node. The exact path is platform-dependent; do not assume a generic
 ```text
 fdt print <qspi-controller-node-path>
 ```
+
+If `/aliases` contains a suitable alias, U-Boot can dereference it by omitting
+the leading slash. For example, if `spi0` points to the QSPI controller:
+
+```text
+fdt print spi0
+```
+
+If there is no alias, use `fdt list /` to begin walking the tree and then print
+the controller by its full node path.
 
 Verify that the controller has `status = "okay"` (or no `status` property),
 and that it contains the expected flash child node. Check the child's
@@ -373,6 +392,16 @@ sf probe
 A successful `sf probe` should identify the SPI-NOR device and report a
 capacity consistent with the configured QSPI size and topology. Do not run
 `sf erase`, `sf write`, or any destructive flash test until this succeeds.
+If the board exposes multiple SPI buses and the default probe fails, use the
+`seq` value shown by `dm uclass spi` and the flash child's chip select to probe
+explicitly:
+
+```text
+sf probe <bus-seq>:<chip-select>
+```
+
+Do not guess these numbers; derive them from `dm uclass spi` and the DTB's
+flash-child `reg` property.
 
 Use the failure point to narrow the problem:
 
@@ -383,6 +412,50 @@ Use the failure point to narrow the problem:
 | Controller appears, but `sf probe` fails | Flash child-node compatibility, chip select, bus width, frequency, stacked/parallel topology, pinmux, wiring, or power. |
 | `sf probe` succeeds with the wrong capacity | Incorrect flash compatible/topology or only one device in a stacked/parallel arrangement was detected. Do not use the generated offsets yet. |
 | `sf probe` succeeds with the expected device and capacity | Device-tree and basic U-Boot QSPI access are ready for the provisioning script. |
+
+### Expected IWG57M Result
+
+The verified IWG57M configuration produces these results:
+
+- `/aliases` maps `spi0` to `/axi/spi@f1030000`.
+- `dm tree` shows the probed `zynqmp_qspi` controller and a probed
+  `jedec_spi_nor` child named `flash@0`.
+- `dm uclass spi` reports sequence `0` for `spi@f1030000`.
+- `mtd list` reports `nor0`, a `0x10000000`-byte NOR device with a
+  `0x10000`-byte erase block.
+- `sf probe` detects `mt25qu02g`, 256-byte pages, 64 KiB erases, and a total
+  capacity of 256 MiB.
+
+An empty `dm uclass mtd` result is not a failure in this build when `dm tree`
+shows the SPI-NOR child, `mtd list` shows `nor0`, and `sf probe` succeeds. Those
+three successful results demonstrate that the control DT node is present, both
+drivers bound, and the flash responded to its identification command.
+
+The verified DT MTD table names these ranges:
+
+| MTD name | Range |
+| --- | --- |
+| `BOOT.bin` | `0x00000000` through `0x009fffff` |
+| `env` | `0x00a00000` through `0x00a1ffff` |
+| `dtb` | `0x00a20000` through `0x00a7ffff` |
+| `Image` | `0x00a80000` through `0x0307ffff` |
+| `rootfs.cpio.gz.u-boot` | `0x03080000` through `0x0ff7ffff` |
+
+The DT reserves `0x20000` bytes for the named `env` partition, while the GUI
+currently exports, erases, and writes a single `0x10000`-byte environment slot
+at `0x00a00000`. The upper `0x10000` bytes are consequently reserved but unused
+by this GUI. Confirm that the U-Boot build uses `CONFIG_ENV_OFFSET=0x00a00000`
+and `CONFIG_ENV_SIZE=0x00010000`; do not assume the extra erase block is a
+redundant environment unless U-Boot and the GUI are deliberately configured
+for redundancy.
+
+The DT output also leaves the final range `0x0ff80000` through `0x0fffffff`
+unnamed. That is the GUI's raw `qspi-boot.scr` slot. U-Boot `sf` commands can
+still erase, write, and read this range by numeric offset, which is what the
+generated scripts do. It will not be available by an MTD partition name unless
+a matching fixed-partition node is added to the DT. This does not prevent the
+complete flow's environment from booting because its `qspiboot` command
+contains the component reads and `booti` command directly.
 
 ### Check QSPI From Linux
 
@@ -444,9 +517,10 @@ map:
 | Rootfs/initramfs | `0x03080000` | `0x0cf00000` | Selected rootfs image. |
 | Permanent U-Boot script | `0x0ff80000` | `0x00080000` | Generated `qspi-boot.scr`. |
 
-The gap after the environment and all slot padding are intentional layout
-space, not additional input files. Erases operate on configured slot sizes,
-while writes use the actual downloaded file sizes.
+The DT reserves `0x20000` for `env`, although the GUI uses only the first
+`0x10000`; the remaining erase block is layout space, not another generated
+file. Other slot padding serves the same purpose. Erases operate on configured
+GUI slot sizes, while writes use the actual downloaded file sizes.
 
 Review every offset and slot size against the physical flash. The complete
 IWG57M provisioning action also enforces the expected board offsets and refuses
