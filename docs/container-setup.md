@@ -56,18 +56,22 @@ export IMAGE_NAME=ghcr.io/kethort/iwave-g57m-lab:latest
 ```bash
 export WORKSPACE="$HOME/versal-lab-data"
 export TFTP_ROOT=/srv/tftp
+export CUSTOM_ARTIFACTS="$HOME/vitis_projects/secure-boot/plm/build/plm/build"
 ```
 
 | Host resource | Container path | Access |
 | --- | --- | --- |
 | `$WORKSPACE` | `/work` | Read/write |
 | `$TFTP_ROOT` | `/srv/tftp` | Read/write |
+| `$CUSTOM_ARTIFACTS` | `/artifacts` | Read-only, optional |
 | `$XILINX_ROOT` | Same absolute path | Read-only |
 | `~/.qt-boot-gui-container` | `/home/qtboot` | Read/write |
 
-Place custom PLM files and other browsed artifacts under `WORKSPACE`, or choose
-a common parent directory as the workspace. Paths outside these mounts are not
-visible in the container.
+Place custom PLM files and other browsed artifacts under `WORKSPACE`, or set
+`CUSTOM_ARTIFACTS` to an additional host directory. The latter is mounted
+read-only at `/artifacts`; for example, mounting the directory containing
+`plm.elf` makes it selectable as `/artifacts/plm.elf`. Paths outside these
+mounts are not visible in the container.
 
 License-server variables are forwarded when set:
 

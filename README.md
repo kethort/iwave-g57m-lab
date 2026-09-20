@@ -93,14 +93,18 @@ Point the launcher at Vitis, your artifact workspace, and the host TFTP root:
 export VITIS_SETTINGS=/development/2025.2/Vitis/settings64.sh
 export WORKSPACE="$HOME/versal-lab-data"
 export TFTP_ROOT=/srv/tftp
+export CUSTOM_ARTIFACTS="$HOME/vitis_projects/secure-boot/plm/build/plm/build"
 
 QT_BOOT_GUI_CHECK_ONLY=1 ./run-container.sh
 ./run-container.sh
 ```
 
 The launcher starts host `hw_server` when needed, mounts Vitis read-only, maps
-`WORKSPACE` to `/work`, and displays the containerized GUI through X11. Vitis is
-not included in the image.
+`WORKSPACE` to `/work`, optionally maps `CUSTOM_ARTIFACTS` read-only to
+`/artifacts`, and displays the containerized GUI through X11. Vitis is not
+included in the image. With the example above, select `/artifacts/plm.elf` in
+the GUI. Leave `CUSTOM_ARTIFACTS` unset when every input is already under the
+workspace.
 
 ## Documentation
 

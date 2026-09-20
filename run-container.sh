@@ -33,6 +33,7 @@ fi
 
 WORKSPACE="${WORKSPACE:-}"
 TFTP_ROOT="${TFTP_ROOT:-/srv/tftp}"
+CUSTOM_ARTIFACTS="${CUSTOM_ARTIFACTS:-}"
 CONTAINER_HOME="${CONTAINER_HOME:-$HOME/.qt-boot-gui-container}"
 XAUTH_FILE="${XAUTHORITY:-$HOME/.Xauthority}"
 AUTO_START_HW_SERVER="${AUTO_START_HW_SERVER:-1}"
@@ -49,6 +50,11 @@ for path in "$XILINX_ROOT" "$WORKSPACE" "$TFTP_ROOT"; do
         exit 1
     fi
 done
+
+if [[ -n "$CUSTOM_ARTIFACTS" && ! -d "$CUSTOM_ARTIFACTS" ]]; then
+    echo "Custom artifacts directory does not exist: $CUSTOM_ARTIFACTS" >&2
+    exit 1
+fi
 
 if [[ ! -r "$VITIS_SETTINGS" ]]; then
     echo "Vitis settings script is not readable: $VITIS_SETTINGS" >&2
@@ -164,6 +170,11 @@ docker_args=(
     --mount "type=bind,source=$TFTP_ROOT,target=/srv/tftp"
     --mount "type=bind,source=$CONTAINER_HOME,target=/home/qtboot"
 )
+
+if [[ -n "$CUSTOM_ARTIFACTS" ]]; then
+    echo "Mounting custom artifacts read-only: $CUSTOM_ARTIFACTS -> /artifacts"
+    docker_args+=(--mount "type=bind,source=$CUSTOM_ARTIFACTS,target=/artifacts,readonly")
+fi
 
 if [[ -t 0 && -t 1 ]]; then
     docker_args+=(--interactive --tty)

@@ -475,19 +475,34 @@ If `mtd-utils` is installed, this gives a more detailed inventory:
 mtdinfo -a
 ```
 
-For a node found under `/sys/firmware/devicetree/base`, inspect string
-properties after removing their terminating NUL bytes:
+For the verified IWG57M Linux DT, inspect the actual controller and flash-child
+paths. Use `tr` to render NUL-separated DT strings as separate lines:
 
 ```bash
-NODE='/sys/firmware/devicetree/base/replace/with/qspi-node-path'
-FLASH_NODE="$NODE/replace-with-flash-child-name"
-test -r "$NODE/status" && tr -d '\0' < "$NODE/status" || echo okay
-tr -d '\0' < "$FLASH_NODE/compatible"; echo
+NODE='/sys/firmware/devicetree/base/axi/spi@f1030000'
+FLASH_NODE="$NODE/flash@0"
+
+if [ ! -d "$NODE" ]; then
+    echo "ERROR: QSPI controller node is absent"
+elif [ -r "$NODE/status" ]; then
+    tr '\0' '\n' < "$NODE/status"
+else
+    echo "Controller status is absent, which means enabled"
+fi
+
+if [ ! -d "$FLASH_NODE" ]; then
+    echo "ERROR: SPI-NOR child node is absent"
+else
+    tr '\0' '\n' < "$FLASH_NODE/compatible"
+fi
 ```
 
-An absent `status` property normally means enabled. A controller node in the
-live tree without an MTD device generally means the Linux driver did not bind
-or the flash probe failed; inspect `dmesg` for the reason.
+Do not copy placeholder node names literally on another platform. Resolve its
+paths with the preceding `find` command first. An absent `status` property on
+an existing node normally means enabled; an absent node is an error. A
+controller node in the live tree without an MTD device generally means the
+Linux driver did not bind or the flash probe failed, so inspect `dmesg` for the
+reason.
 
 Linux uses the Linux `system.dtb`, not necessarily the handoff/control DTB used
 by the temporary U-Boot PDI. Linux detection proves that the hardware and Linux
