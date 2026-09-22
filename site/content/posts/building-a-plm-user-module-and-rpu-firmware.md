@@ -102,6 +102,8 @@ With `--symlink-sources`, the Vitis component points back to the maintained file
 
 The script creates a separate RPU platform and Vitis application. The platform name must differ from the PLM platform because the PLM platform owns the PMC domain. The RPU application is built from the Cargo package at `rpu-app/rpu_ipi_ping_pong/src/main.rs`.
 
+In Vitis, the generated RPU application component is still useful for launch and debug metadata, but it is not the source of truth for the firmware source. For Rust builds, `build-plm` removes the generated empty-application C template, exposes the Cargo workspace under the component, builds with Cargo, and copies the resulting ELF into `build/rpu_ipi_ping_pong/build/rpu_ipi_ping_pong.elf`.
+
 The firmware expects:
 
 | Requirement | Reason |
