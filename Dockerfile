@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libqt5qml5 \
     libqt5quick5 \
     libqt5quickcontrols2-5 \
+    libyaml-0-2 \
     qml-module-qt-labs-folderlistmodel \
     qml-module-qt-labs-settings \
     qml-module-qtquick2 \
