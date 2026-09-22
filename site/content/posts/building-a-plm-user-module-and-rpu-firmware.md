@@ -18,7 +18,7 @@ The practical goal is not just to prove the IPI path. It is to make the PLM user
 | Tool release | Vitis 2025.2 |
 | Hardware input | Versal XSA exported with a device image |
 | PLM source overlay | `plm/src/common/xplm_ipi_ping_pong_module.c` |
-| RPU source | `rpu-app/src/main.c` |
+| RPU source | `rpu-app/rpu_ipi_ping_pong/src/main.rs` |
 | PLM processor/domain | `psv_pmc_0` / `standalone_psv_pmc_0` |
 | RPU processor/domain | `psv_cortexr5_0` / `standalone_psv_cortexr5_0` |
 
@@ -43,8 +43,9 @@ vitis -s ./plm/build-plm \
   --custom-source-dir ./plm/src \
   --register-module xplm_ipi_ping_pong_module.h:XPlm_IpiPingPongModuleInit \
   --user-modules-count 1 \
-  --rpu-source ./rpu-app/src \
+  --rpu-source ./rpu-app \
   --rpu-app-name rpu_ipi_ping_pong \
+  --rpu-cargo-package rpu_ipi_ping_pong \
   --rpu-platform-name rpu_platform \
   --rpu-processor psv_cortexr5_0 \
   --rpu-domain standalone_psv_cortexr5_0 \
@@ -54,7 +55,7 @@ vitis -s ./plm/build-plm \
   --embed-rpu-in-pdi
 ```
 
-The script creates the PLM platform and application, overlays the maintained PLM source, registers the module init function in generated `xplm_module.c`, builds `plm.elf`, creates the RPU platform and application, overlays the RPU source, builds the RPU ELF, and then uses Bootgen to generate PDI artifacts.
+The script creates the PLM platform and application, overlays the maintained PLM source, registers the module init function in generated `xplm_module.c`, builds `plm.elf`, creates the RPU platform and application, exposes the Rust RPU workspace to the generated component, builds the RPU ELF with Cargo, and then uses Bootgen to generate PDI artifacts.
 
 ## Expected outputs
 
@@ -99,18 +100,20 @@ With `--symlink-sources`, the Vitis component points back to the maintained file
 
 ## RPU firmware path
 
-The script creates a separate RPU platform and Vitis application. The platform name must differ from the PLM platform because the PLM platform owns the PMC domain. The RPU application is built from `rpu-app/src/main.c`.
+The script creates a separate RPU platform and Vitis application. The platform name must differ from the PLM platform because the PLM platform owns the PMC domain. The RPU application is built from the Cargo package at `rpu-app/rpu_ipi_ping_pong/src/main.rs`.
 
 The firmware expects:
 
 | Requirement | Reason |
 | --- | --- |
-| `XIpiPsu` instance generated for the RPU | The app uses the Xilinx IPI driver. |
+| `XIpiPsu` instance generated for the RPU | The Rust app binds to the Xilinx IPI driver. |
 | PMC mask `0x00000002` | The app targets the PMC/PLM IPI endpoint. |
 | Interrupt setup support | The response path is interrupt-driven. |
 | Shared UART discipline | PLM and RPU prints may interleave. |
 
-If the build fails with the source-level error about `XPAR_XIPIPSU_0_BASEADDR`, regenerate or inspect the hardware platform. The RPU domain did not receive the expected IPI instance.
+The Cargo build uses generated BSP bindings and links against the Vitis standalone BSP archives. If binding generation fails around `XPAR_XIPIPSU_0_BASEADDR`, regenerate or inspect the hardware platform. The RPU domain did not receive the expected IPI instance.
+
+The Rust package includes an optional minimal remoteproc resource table. The build script enables the `remoteproc` feature for Rust RPU builds, so Linux remoteproc can recognize the ELF even though this demo does not allocate RPMsg vrings or carveouts.
 
 ## Evidence to capture
 
@@ -134,7 +137,12 @@ README.md
 plm/build-plm
 plm/src/common/xplm_ipi_ping_pong_module.c
 plm/src/common/xplm_ipi_ping_pong_module.h
-rpu-app/src/main.c
+rpu-app/Cargo.toml
+rpu-app/Cargo.lock
+rpu-app/.cargo/config.toml
+rpu-app/bsp_bindings/
+rpu-app/rpu_ipi_ping_pong/src/main.rs
+rpu-app/rpu_ipi_ping_pong/src/remoteproc.rs
 ```
 
 Do not publish generated workspaces, board-private XSA files, extracted vendor firmware, ELFs, PDIs, or serial logs unless they have been explicitly cleared for release.
