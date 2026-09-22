@@ -18,7 +18,7 @@ The practical goal is not just to prove the IPI path. It is to make the PLM user
 | Tool release | Vitis 2025.2 |
 | Hardware input | Versal XSA exported with a device image |
 | PLM source overlay | `plm/src/common/xplm_ipi_ping_pong_module.c` |
-| RPU source | `plm/rpu-app/src/main.c` |
+| RPU source | `rpu-app/src/main.c` |
 | PLM processor/domain | `psv_pmc_0` / `standalone_psv_pmc_0` |
 | RPU processor/domain | `psv_cortexr5_0` / `standalone_psv_cortexr5_0` |
 
@@ -43,7 +43,7 @@ vitis -s ./plm/build-plm \
   --custom-source-dir ./plm/src \
   --register-module xplm_ipi_ping_pong_module.h:XPlm_IpiPingPongModuleInit \
   --user-modules-count 1 \
-  --rpu-source ./plm/rpu-app/src \
+  --rpu-source ./rpu-app/src \
   --rpu-app-name rpu_ipi_ping_pong \
   --rpu-platform-name rpu_platform \
   --rpu-processor psv_cortexr5_0 \
@@ -99,7 +99,7 @@ With `--symlink-sources`, the Vitis component points back to the maintained file
 
 ## RPU firmware path
 
-The script creates a separate RPU platform and Vitis application. The platform name must differ from the PLM platform because the PLM platform owns the PMC domain. The RPU application is built from `plm/rpu-app/src/main.c`.
+The script creates a separate RPU platform and Vitis application. The platform name must differ from the PLM platform because the PLM platform owns the PMC domain. The RPU application is built from `rpu-app/src/main.c`.
 
 The firmware expects:
 
@@ -134,7 +134,7 @@ README.md
 plm/build-plm
 plm/src/common/xplm_ipi_ping_pong_module.c
 plm/src/common/xplm_ipi_ping_pong_module.h
-plm/rpu-app/src/main.c
+rpu-app/src/main.c
 ```
 
 Do not publish generated workspaces, board-private XSA files, extracted vendor firmware, ELFs, PDIs, or serial logs unless they have been explicitly cleared for release.
