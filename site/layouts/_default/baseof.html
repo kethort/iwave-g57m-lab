@@ -6,8 +6,8 @@
   <meta name="description" content="{{ .Description | default site.Params.description }}">
   <title>{{ if not .IsHome }}{{ .Title }} | {{ end }}{{ site.Title }}</title>
   <link rel="icon" href="{{ "favicon.svg" | relURL }}" type="image/svg+xml">
-  {{ $style := resources.Get "css/main.css" | minify | fingerprint }}
-  <link rel="stylesheet" href="{{ $style.RelPermalink }}" integrity="{{ $style.Data.Integrity }}">
+  {{ $style := resources.Get "css/main.css" | minify }}
+  <link rel="stylesheet" href="{{ $style.RelPermalink }}">
 </head>
 <body>
   <div class="scope-line" aria-hidden="true"></div>
