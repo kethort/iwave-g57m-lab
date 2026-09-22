@@ -1,0 +1,143 @@
++++
+title = "Teaching a Passive FMC Breakout to Identify Itself"
+date = 2026-09-22T00:00:00-07:00
+description = "Bring up the iWave G57M safely, add an AT24C64 FMC FRU, preserve JTAG continuity, and prove that the carrier selected the intended 1.2 V VADJ rail."
+tags = ["FMC", "FRU", "I2C", "JTAG", "U-Boot"]
+categories = ["Board Bring-Up"]
++++
+
+This is the starting point for the lab: an iWave G57M Versal AI Edge VE2302 SOM on a G57D R2.0 development carrier, followed by one controlled hardware change. The change is a passive FMC LPC breakout with a small EEPROM that makes the card identifiable to the carrier.
+
+The result is useful, but the path exposed two details that are easy to miss: the EEPROM protocol expected by this U-Boot build and the effect of FMC presence on the JTAG chain.
+
+## Establish the unmodified baseline
+
+iWave's [official getting-started guide](https://iwave-global.com/knowledge-base/products/get-started-with-versal-ai-edge-prime-som-development-platform/) is the source of truth for the initial carrier setup. The minimum observable baseline is:
+
+| Check | Configuration |
+| --- | --- |
+| Handling | Grounded ESD-safe workspace |
+| Power | Supplied 12 V supply connected at J2; SW1 controls power |
+| Boot selection | SW4 set for the intended boot mode |
+| Debug and JTAG | J8 USB Type-C; SW3 OFF for JTAG |
+| Serial console | 115200 baud, 8 data bits, no parity, 1 stop bit, no flow control |
+
+Do this first with the FMC breakout disconnected. Confirm that serial output appears and that the host can scan the onboard JTAG chain. That gives every later failure a useful boundary.
+
+{{< lab-figure src="images/g57m-platform-map.svg" alt="Functional connection map for the iWave G57M development platform" caption="A functional bench map, not a physical connector-orientation drawing. Confirm connector locations and switch positions against the carrier documentation." >}}
+
+> **Power boundary:** do not insert or remove the SOM or FMC breakout with power applied. Set the FMC VADJ select switch before power-up. This experiment uses **1.2 V** VADJ.
+
+## Hardware used
+
+- iWave G57M VE2302 SOM and G57D R2.0 carrier.
+- Passive [FMC LPC breakout, item 357886097671](https://www.ebay.com/itm/357886097671).
+- [AT24C64-compatible 64-Kbit I2C EEPROM](https://www.microchip.com/en-us/product/at24c64b).
+- Arduino Uno for off-board EEPROM programming.
+- Optional J19 breakout: [Samtec SFSD-30-28-G-06.00-S](https://www.digikey.com/en/products/detail/samtec-inc/SFSD-30-28-G-06-00-S/8420769), used for later PS GPIO work but not required to program this FRU.
+
+The FMC card is passive. It exposes connector signals but supplies no JTAG TAP and no FRU EEPROM of its own.
+
+## Wire presence, FRU, and JTAG bypass
+
+Wire the AT24C64 as follows with the carrier powered off:
+
+| FMC signal | EEPROM or connection | Purpose |
+| --- | --- | --- |
+| D32 `3P3VAUX` | `VCC` | Auxiliary 3.3 V supply |
+| C30 `SCL` | `SCL` | FRU I2C clock |
+| C31 `SDA` | `SDA` | FRU I2C data |
+| FMC ground | `GND`, `A0`, `A1`, `A2`, `WP` | Address 0x50; writes enabled |
+| H2 `PRSNT_M2C_L` | Ground | Assert mezzanine presence |
+| D30 `JTAG TDI` | D31 `JTAG TDO` | Passive scan-chain bypass |
+
+{{< lab-figure src="images/fmc-fru-wiring.svg" alt="AT24C64, presence, and passive JTAG bypass wiring on the FMC breakout" caption="Known-good passive breakout wiring. D30-to-D31 is required because this card has no JTAG-capable device." >}}
+
+Grounding `PRSNT_M2C_L` made the carrier inspect the card, but it also inserted the FMC path into the JTAG chain. With no TAP on the passive breakout, the chain was open. Bridging D30 TDI directly to D31 TDO restored the onboard USB JTAG scan chain while presence remained asserted.
+
+Do not remove this bypass unless a real JTAG-capable device is inserted into that path.
+
+## Why AT24C64 instead of AT24C02
+
+Capacity was not the deciding factor. This iWave U-Boot FMC implementation accessed the FRU with a **two-byte internal EEPROM offset**. An AT24C02 uses a one-byte internal address for this operation; the AT24C64 uses two bytes and matched the observed U-Boot behavior.
+
+The distinction can be checked at the U-Boot prompt:
+
+```text
+i2c dev 3
+i2c olen 50
+```
+
+For the working device at address `0x50`, `i2c olen 50` reports an offset length of 2.
+
+## Program the 256-byte FRU
+
+The FRU is structured identification data, not firmware. The supplied Arduino sketch writes the 256-byte VITA/IPMI FMC FRU at EEPROM offset `0x0000`, ACK-polls each write, reads every byte back, and only reports success if all bytes match.
+
+For off-board programming, connect the Arduino Uno before installing the EEPROM on the FMC breakout:
+
+| Arduino Uno | AT24C64 |
+| --- | --- |
+| A4 / SDA | SDA |
+| A5 / SCL | SCL |
+| GND | GND, A0, A1, A2, WP |
+| Appropriate supply | VCC |
+
+{{< download href="downloads/fmc-fru/program_at24c02.ino" label="Arduino EEPROM programmer" meta="PROGRAM_AT24C02.INO" >}}
+{{< download href="downloads/fmc-fru/fmc_fru_image.h" label="256-byte FMC FRU image" meta="FMC_FRU_IMAGE.H" >}}
+{{< download href="downloads/fmc-fru/g57m_fmc_lpc_fru.bin" label="Raw FRU binary" meta="256 BYTES" >}}
+
+The sketch kept its original filename, but its transaction format is for the AT24C64: it sends the internal address most-significant byte first, then least-significant byte.
+
+```cpp
+Wire.write((uint8_t)(memAddr >> 8));
+Wire.write((uint8_t)(memAddr & 0xFF));
+```
+
+The required completion message is:
+
+```text
+VERIFY PASS: all 256 FRU bytes match.
+```
+
+## Verify from U-Boot
+
+Install the programmed EEPROM and passive bypass, set FMC VADJ to 1.2 V, then power the carrier. Interrupt autoboot and run:
+
+```text
+i2c dev 3
+i2c probe
+i2c olen 50
+i2c md 0x50 0x0000.2 0x80
+frudump 3 50
+```
+
+The expected evidence is:
+
+1. `i2c probe` finds `0x50`.
+2. `i2c olen 50` reports a two-byte offset.
+3. The dump begins at EEPROM address `0x0000` and contains the FRU data.
+4. `frudump 3 50` parses the record.
+5. JTAG enumeration still works through the D30-to-D31 bypass.
+
+The `.2` suffix in `0x0000.2` is important: it explicitly selects the two-byte internal address used by the AT24C64.
+
+## Proof at boot
+
+With a valid FRU, the serial log immediately after PLM startup reports:
+
+```text
+FMC+:   FMC+ Vadj Voltage set to 1.2V
+FMC+:   FMC+ Powered up
+PMIC-1: LD02 (XPIO BANK 702) set to 1.200V
+PMIC-1: LD03 (XPIO BANK 703) set to 1.200V
+PMIC-1: LD04 (HD BANK 302) set to 1.800V
+```
+
+{{< lab-figure src="images/fmc-boot-proof.svg" alt="Validation chain from EEPROM FRU through PLM to carrier power rails" caption="The useful finish line is a chain of evidence: EEPROM ACK, parsed FRU, intact JTAG, selected VADJ, and measured or reported rail configuration." >}}
+
+The validated operating point is **1.2 V for XPIO banks 702 and 703** and **1.8 V for HD bank 302**. Do not infer that every FMC card is compatible with this setting; the card design and its FRU must agree with the carrier configuration.
+
+## What this baseline buys us
+
+The carrier can now detect the passive mezzanine, parse its identity, select the requested VADJ, and retain a working onboard JTAG chain. Future GPIO, PL, RPU, IPI, and DMA experiments can build from that state without rediscovering whether a missing target is a software problem, an open scan chain, or an unrecognized FMC card.

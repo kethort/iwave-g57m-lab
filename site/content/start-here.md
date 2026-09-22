@@ -1,26 +1,32 @@
 +++
 title = "Start Here"
-description = "The hardware, software, and safety baseline used throughout this lab notebook."
+description = "Establish a safe, observable G57M baseline before changing boot firmware or attaching hardware."
 +++
 
-This site documents repeatable bring-up and recovery work on an iWave G57M platform built around AMD Versal AI Edge silicon.
+This notebook starts with an iWave G57M VE2302 SOM on the G57D R2.0 carrier. The goal is not merely to reach a Linux prompt. It is to make power, serial output, JTAG visibility, and each external connection independently testable.
 
-## Baseline
+## First power-up
 
-| Component | Version |
-| --- | --- |
-| Board family | iWave G57M |
-| Device class | Versal AI Edge VE2302 |
-| Vitis and Vivado | 2025.2 |
-| Host workflow | Linux, Docker, host `hw_server` |
+Start with iWave's [official getting-started procedure](https://iwave-global.com/knowledge-base/products/get-started-with-versal-ai-edge-prime-som-development-platform/). In particular:
 
-Always confirm the board revision, flash geometry, memory addresses, and tool version before applying a procedure. Commands that erase or program QSPI can make a board temporarily unbootable.
+- work on a grounded ESD-safe surface;
+- use the supplied 12 V power supply at J2;
+- connect the combined debug UART and JTAG cable at J8;
+- set SW3 to OFF for JTAG;
+- select the intended boot mode at SW4 before applying power;
+- configure the console for 115200 baud, 8 data bits, no parity, one stop bit, and no flow control.
 
-## Recommended reading order
+> Never insert or remove the SOM or an FMC card while the carrier is powered. Verify the carrier revision and switch labels against its documentation before relying on a photograph or another revision's switch positions.
 
-1. Connect serial and JTAG and verify that `hw_server` sees the PMC.
-2. Establish a recoverable JTAG boot path.
-3. Add TFTP or NFS for fast Linux iteration.
-4. Validate a complete QSPI layout before programming persistent flash.
+## First experiment
 
-The downloadable GUI and container package live in the same repository as this site. AMD Vitis is not redistributed; users mount their own licensed installation.
+The first lab entry turns a passive FMC LPC breakout into a carrier-recognized mezzanine by adding a VITA/IPMI FRU EEPROM. It also documents a less obvious requirement discovered at the bench: asserting FMC presence placed the empty FMC JTAG path in the scan chain, so the passive card required a TDI-to-TDO bypass.
+
+[Open the FMC FRU bring-up ->]({{< ref "/posts/fmc-fru-passive-breakout" >}})
+
+## Working method
+
+1. Establish power, UART, and JTAG with no experimental hardware attached.
+2. Change one physical connection at a time.
+3. Record both the expected output and the failure signature.
+4. Keep a recovery path before writing persistent QSPI flash.

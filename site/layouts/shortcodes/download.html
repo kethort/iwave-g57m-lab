@@ -1,0 +1,4 @@
+<a class="download" href="{{ (.Get "href") | relURL }}" download>
+  <span>{{ .Get "label" }}</span>
+  <small>{{ with .Get "meta" }}{{ . }}{{ else }}DOWNLOAD{{ end }}</small>
+</a>
