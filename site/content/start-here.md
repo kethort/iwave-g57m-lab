@@ -16,23 +16,20 @@ Start with iWave's [official getting-started procedure](https://iwave-global.com
 - select the intended boot mode at SW4 before applying power;
 - configure the console for 115200 baud, 8 data bits, no parity, one stop bit, and no flow control.
 
-> Never insert or remove the SOM or an FMC card while the carrier is powered. Verify the carrier revision and switch labels against its documentation before relying on a photograph or another revision's switch positions.
-
 ## Experiment 001: reproduce the software baseline
 
-Before modifying the hardware, build the boot firmware, U-Boot, Linux kernel, device tree, and root filesystem from the iWave BSP. The first entry maps the current `meta-iwave` recipes and shows which generated files are required by each GUI boot flow.
+Build the boot firmware, U-Boot, Linux kernel, device tree, and root filesystem from the iWave BSP. This entry maps the current `meta-iwave` changes, documents the supported build commands, and identifies the deploy artifacts.
 
 [Build the G57M software baseline ->]({{< ref "/posts/building-the-iwave-petalinux-baseline" >}})
 
-## Experiment 002: identify a passive FMC card
+## Experiment 002: deploy a Full JTAG PDI
 
-The second entry turns a passive FMC LPC breakout into a carrier-recognized mezzanine by adding a VITA/IPMI FRU EEPROM. It also documents a less obvious requirement discovered at the bench: asserting FMC presence placed the empty FMC JTAG path in the scan chain, so the passive card required a TDI-to-TDO bypass.
+Package the Versal firmware chain, U-Boot, and a Linux FIT into one temporary PDI, then load it through the GUI using Bootgen and XSDB. This entry keeps the volatile JTAG path distinct from persistent QSPI provisioning.
+
+[Deploy a Full JTAG PDI ->]({{< ref "/posts/deploying-a-full-jtag-pdi-with-the-boot-gui" >}})
+
+## Experiment 003: identify a passive FMC card
+
+Turn a passive FMC LPC breakout into a carrier-recognized mezzanine by adding a VITA/IPMI FRU EEPROM. This entry also documents a less obvious requirement discovered at the bench: asserting FMC presence placed the empty FMC JTAG path in the scan chain, so the passive card required a TDI-to-TDO bypass.
 
 [Open the FMC FRU bring-up ->]({{< ref "/posts/fmc-fru-passive-breakout" >}})
-
-## Working method
-
-1. Establish power, UART, and JTAG with no experimental hardware attached.
-2. Change one physical connection at a time.
-3. Record both the expected output and the failure signature.
-4. Keep a recovery path before writing persistent QSPI flash.

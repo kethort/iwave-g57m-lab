@@ -1,5 +1,5 @@
 +++
-title = "Experiment 002: Teaching a Passive FMC Breakout to Identify Itself"
+title = "Experiment 003: Teaching a Passive FMC Breakout to Identify Itself"
 slug = "teaching-a-passive-fmc-breakout-to-identify-itself"
 date = 2026-09-22T00:00:00-07:00
 description = "Bring up the iWave G57M safely, add an AT24C64 FMC FRU, preserve JTAG continuity, and prove that the carrier selected the intended 1.2 V VADJ rail."
@@ -7,7 +7,7 @@ tags = ["FMC", "FRU", "I2C", "JTAG", "U-Boot"]
 categories = ["Board Bring-Up"]
 +++
 
-With the software baseline reproduced, the second experiment makes one controlled hardware change to the iWave G57M Versal AI Edge VE2302 SOM and G57D R2.0 carrier. The change is a passive FMC LPC breakout with a small EEPROM that makes the card identifiable to the carrier.
+This experiment makes one controlled hardware change to the iWave G57M Versal AI Edge VE2302 SOM and G57D R2.0 carrier: add a small EEPROM that makes a passive FMC LPC breakout identifiable to the carrier.
 
 The result is useful, but the path exposed two details that are easy to miss: the EEPROM protocol expected by this U-Boot build and the effect of FMC presence on the JTAG chain.
 

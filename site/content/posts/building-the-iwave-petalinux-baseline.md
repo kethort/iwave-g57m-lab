@@ -1,24 +1,30 @@
 +++
 title = "Experiment 001: Building the iWave PetaLinux Baseline"
-date = 2026-09-21T00:00:00-07:00
-description = "Rebuild the G57M boot firmware, U-Boot, Linux, device tree, and root filesystem from the iWave Yocto BSP, then identify the artifacts used by every boot flow."
+date = 2026-09-20T00:00:00-07:00
+description = "Reproduce the G57M boot firmware, U-Boot, Linux, device tree, root filesystem, and deploy artifacts from the iWave Yocto BSP."
 tags = ["PetaLinux", "Yocto", "BitBake", "iWave", "Build"]
 categories = ["Board Bring-Up"]
 +++
 
-The first experiment is deliberately a software build. Before changing PLM behavior, attaching an FMC card, or writing QSPI, we need a reproducible set of boot artifacts derived from the iWave G57M baseline.
+This experiment establishes a reproducible software baseline for the iWave G57M VE2302 SOM and G57D R2.0 carrier. Its scope is deliberately narrow: understand the local layer, build it, and prove that the expected deploy artifacts were produced.
 
-This workspace uses the **Yocto form of PetaLinux**, not a classic `project-spec` project. PetaLinux supplies the distribution and AMD layers, while BitBake performs the build. The correct top-level target is therefore:
+This workspace uses the **Yocto form of PetaLinux**, not a classic PetaLinux `project-spec` workflow. PetaLinux supplies the distribution and AMD layers, while BitBake performs the build. There is no `petalinux-build` or `petalinux-config` step in this BSP layout.
 
-```bash
-bitbake petalinux-image-minimal
+```text
+system.xsa + meta-iwave recipes + machine configuration
+                         |
+                         v
+              petalinux-image-minimal
+                         |
+                         v
+ build/tmp/deploy/images/versal-iwg57m/
+                         |
+       +-----------------+-----------------+
+       |                 |                 |
+  boot firmware      Linux payloads    host artifacts
 ```
 
-There is no `petalinux-build` or `petalinux-config` step in this particular BSP layout.
-
 ## Inputs and boundaries
-
-The working baseline is:
 
 | Input | Value |
 | --- | --- |
@@ -30,76 +36,60 @@ The working baseline is:
 | Image target | `petalinux-image-minimal` |
 | Hardware description | `sources/meta-iwave/recipes-bsp/hw-description/system.xsa` |
 
-Obtain the matching BSP and board documentation from iWave rather than copying a machine configuration from a different carrier revision. The [iWave platform guide](https://iwave-global.com/knowledge-base/products/get-started-with-versal-ai-edge-prime-som-development-platform/) remains the hardware starting point.
+Obtain the matching BSP and carrier documentation from iWave rather than copying configuration from another Versal board or carrier revision. The [iWave platform guide](https://iwave-global.com/knowledge-base/products/get-started-with-versal-ai-edge-prime-som-development-platform/) remains the hardware starting point.
 
-The vendor patches, XSA, and generated firmware are not reproduced on this website. The notes below describe the layer structure and local configuration deltas.
+The vendor source, XSA, patches, and generated firmware are not reproduced on this website. The paths below describe this workspace.
 
-## How the layer is selected
+## How the build is selected
 
-The setup script points `TEMPLATECONF` at iWave's template and then enters the OpenEmbedded environment:
+`setupsdk` points `TEMPLATECONF` at the iWave template and enters the OpenEmbedded environment:
 
 ```bash
 export TEMPLATECONF="${ROOT}/sources/meta-iwave/conf/templates/iwg57m"
 source "${ROOT}/sources/poky/oe-init-build-env" build
 ```
 
-That template adds `meta-iwave` to `BBLAYERS`. The resulting `build/conf/local.conf` selects:
+That template adds `meta-iwave` to `BBLAYERS`. The resulting build configuration selects the `versal-iwg57m` machine and PetaLinux distribution. Keep maintained changes under `sources/meta-iwave`; do not edit `build/tmp`, which is generated state and may disappear after a clean build.
 
-```bitbake
-MACHINE ??= "versal-iwg57m"
-DISTRO ?= "petalinux"
+## Local recipe and configuration delta
+
+| Area | Recipe or configuration | Change | Why it exists | Produced or runtime effect |
+| --- | --- | --- | --- | --- |
+| Machine | `conf/machine/versal-iwg57m.conf` | Selects the XSA, U-Boot and kernel configurations, serial console, load addresses, rootfs package list, and `uboot-env` dependency. | Binds the generic Versal layers to this carrier and SOM. | Drives firmware generation and installs the board's bring-up tools and services. |
+| U-Boot | `recipes-bsp/u-boot/u-boot-xlnx_%.bbappend` | Applies the iWave baseline patch, automatic boot-method patch, and board configuration fragment. | Keeps board-specific U-Boot behavior in the machine layer. | Produces the board U-Boot binary and ELF with the scripted JTAG, network, and QSPI commands. |
+| U-Boot configuration | `recipes-bsp/u-boot/files/versal_iwg57m.cfg` | Enables FIT, networking, NFS, SPI flash, MTD, I2C/FRU, `source`, and board drivers; defines the SPI environment location. | Supplies the commands and drivers used during bring-up. | U-Boot can load scripts, use TFTP/NFS, inspect FMC FRU data, and access the QSPI flash. |
+| Automatic boot methods | `recipes-bsp/u-boot/files/0002-iwg57m-automatic-boot-methods.patch` | Adds named component, FIT, JTAG, NFS, and QSPI boot paths plus fallback behavior. | Makes each boot strategy selectable and observable from U-Boot. | `bootcmd` can dispatch through `modeboot` to the selected method. |
+| Environment image | `recipes-bsp/uboot-env/uboot-env.bb` | Generates readable `uboot-env.txt` and a checksummed binary `uboot.env` with `mkenvimage`. | Provides reproducible initial network and boot variables. | Deploys environment artifacts; it does not contain the U-Boot program. |
+| Linux | `recipes-kernel/linux/linux-xlnx_%.bbappend` and `versal_iwg57m.cfg` | Applies the iWave kernel baseline and enables Versal IPI mailbox, R5 remoteproc, and RPMsg support. | Makes the selected carrier peripherals and RPU communication support available to Linux. | Produces `Image`, modules, and drivers used at runtime. |
+| Device tree | `recipes-bsp/device-tree/device-tree.bbappend` and `system-user.dtsi` | Includes board aliases and peripherals, QSPI geometry/partitions, RPU reserved memory, remoteproc, and IPI mailboxes. | Describes hardware that software cannot discover on its own. | Produces the final Linux DTB; its QSPI node also lets Linux expose the fixed MTD regions. |
+| Startup service | `recipes-apps/bootscript/bootscript.bb` | Installs a one-shot systemd unit that sets the kernel log level, timezone, and displayed BSP version. | Makes the baseline identity visible at login. | Runs `bootscript.service` during multi-user startup. |
+| Network fallback | `recipes-core/network-fallback/network-fallback.bb` | Installs a bounded DHCP attempt with a static IPv4 fallback for `end1`. | Keeps the board reachable when DHCP is unavailable. | Uses `192.168.0.137/24` only if no DHCP address is obtained. |
+
+The RPU and RPMsg entries are capabilities in this baseline; building the image does not itself load an RPU application.
+
+## U-Boot environment artifacts
+
+These similarly named files have different jobs:
+
+- `BOOT.bin` is the boot firmware package. It contains the Versal platform/PLM content, PSM firmware, TF-A, and U-Boot selected by the boot recipe.
+- The **SPI environment** is persistent variable storage, not U-Boot itself. The U-Boot board configuration reserves `0x10000` bytes at offset `0x00a00000`, with erase-sector size `0x10000`.
+- `uboot.env` is a host-generated environment image. It is useful only when the active U-Boot environment backend and installation method expect that image.
+- A FAT-backed `uboot.env` is separate from the SPI environment and is used only when that U-Boot configuration and environment load order support it.
+- `qspi-boot.scr` is a U-Boot command script that loads Linux components. It is neither an environment nor a U-Boot executable.
+
+The environment recipe's default size is `0x10000`. Confirm the **effective** BitBake value before treating its output as a deployable environment, because a machine or local override wins over the recipe default:
+
+```bash
+bitbake -e uboot-env | grep '^UBOOT_ENV_SIZE='
+stat -c '%n %s bytes' \
+  tmp/deploy/images/versal-iwg57m/uboot.env
 ```
 
-Keep board behavior in `meta-iwave`; do not make lasting changes under `build/tmp`. The latter is generated state and can disappear after a clean build.
+The expected result is `UBOOT_ENV_SIZE="0x10000"` and a 65,536-byte `uboot.env`. A different effective size must be reconciled with U-Boot's `CONFIG_ENV_SIZE` before deployment.
 
-## Recipes that define this image
+## Build the complete image
 
-### Machine and root filesystem
-
-`conf/machine/versal-iwg57m.conf` connects the machine to its XSA, serial console, U-Boot defconfig, kernel defconfig, image packages, and deploy-time dependencies.
-
-The current root filesystem extends the iWave package list with:
-
-```bitbake
-IMAGE_INSTALL:append = " kernel-modules network-fallback "
-EXTRA_IMAGEDEPENDS:append = " uboot-env"
-```
-
-The complete vendor list also includes tools used during bring-up, including `i2c-tools`, `mtd-utils`, `ethtool`, `nfs-utils`, `u-boot-tools`, `can-utils`, `iperf3`, and the iWave `bootscript` service.
-
-### U-Boot
-
-`recipes-bsp/u-boot/u-boot-xlnx_%.bbappend` applies the iWave base patch and the lab's automatic boot-method patch. The latter adds named U-Boot flows for:
-
-- separate-component TFTP boot;
-- TFTP kernel and DTB with an NFS root filesystem;
-- FIT boot from TFTP;
-- JTAG-loaded FIT boot with a TFTP fallback;
-- QSPI `boot.scr` execution with component fallback.
-
-The accompanying `versal_iwg57m.cfg` enables the commands those flows require, including networking, NFS, FIT, SPI flash, MTD, I2C, FRU, and `source` support.
-
-### Persistent U-Boot environment
-
-`recipes-bsp/uboot-env/uboot-env.bb` generates both a readable `uboot-env.txt` and a binary `uboot.env` with `mkenvimage`. It supplies `ethact`, `serverip`, `ipaddr`, `netmask`, the FIT load address, and the default `modeboot` command.
-
-> **Configuration check:** `UBOOT_ENV_SIZE` must match `CONFIG_ENV_SIZE`. The current machine override is `0x8000`, while `versal_iwg57m.cfg` specifies `0x10000`. Align these values before using the generated environment as a production QSPI artifact. The current deployed `uboot.env` is 32 KiB because the machine override wins.
-
-### Linux and device tree
-
-`recipes-kernel/linux/linux-xlnx_%.bbappend` applies the iWave kernel baseline and machine fragments. The current local fragment builds the Versal R5 remoteproc and core RPMsg support into the kernel so the later RPU experiment has deterministic early driver availability.
-
-`recipes-bsp/device-tree/device-tree.bbappend` includes `system-user.dtsi`. The iWave baseline defines carrier Ethernet, I2C, QSPI, FMC VADJ, PMIC rails, USB, storage, and board identity. The current additions reserve RPU firmware and vring memory, describe the R5 subsystem and IPI mailboxes, and retain the QSPI partition layout used by provisioning.
-
-### Root filesystem services
-
-The `bootscript` recipe installs a one-shot systemd service that applies the console log level, timezone, and displayed BSP version.
-
-The `network-fallback` recipe installs a bounded DHCP attempt followed by a static fallback. Its current defaults target `end1` and use `192.168.0.137/24` only when DHCP does not provide an address.
-
-## Build from the workspace root
-
-The checked-in wrapper performs the environment setup consistently:
+The checked-in wrapper performs the supported setup consistently:
 
 ```bash
 cd /development/xilinx-dev/iwg57m-2025-2
@@ -107,52 +97,67 @@ export VITIS_SETTINGS=/development/2025.2/Vitis/settings64.sh
 ./build-image.sh
 ```
 
-Internally it:
+It sources Vitis, clears `DISPLAY` for non-interactive XSCT use, enters the build environment through `setupsdk`, and runs `bitbake petalinux-image-minimal`.
 
-1. sources the Vitis 2025.2 environment;
-2. clears `DISPLAY` so XSCT runs non-interactively;
-3. sources `setupsdk build`;
-4. runs `bitbake petalinux-image-minimal`.
-
-For an interactive build shell, run the equivalent setup manually:
+The interactive equivalent is:
 
 ```bash
+cd /development/xilinx-dev/iwg57m-2025-2
 source /development/2025.2/Vitis/settings64.sh
 source ./setupsdk build
 bitbake petalinux-image-minimal
 ```
 
-Do not run the two builds simultaneously against the same `build/tmp` directory.
+To rebuild only the generated environment artifacts after entering that shell:
+
+```bash
+bitbake uboot-env
+```
+
+Do not run concurrent BitBake processes against the same `build` directory. They share caches, work directories, and task state.
 
 ## Required deploy artifacts
 
-Successful output appears under:
+Successful outputs appear under:
 
 ```text
 build/tmp/deploy/images/versal-iwg57m/
 ```
 
-Use the stable symlink names rather than timestamped filenames:
+Prefer stable symlink names in commands. Timestamped names identify the exact build behind those links and are valuable in archived test records.
 
-| Artifact | Producer and purpose |
-| --- | --- |
-| `boot.bin` | Bootgen output containing the normal Versal boot firmware chain |
-| `plm-versal-iwg57m.elf` | PLM built from the selected XSA and machine configuration |
-| `psm-firmware-versal-iwg57m.elf` | PSM firmware |
-| `arm-trusted-firmware.elf` | TF-A / BL31 |
-| `u-boot.elf` | U-Boot used for reconstructed JTAG PDIs |
-| `system.dtb` | Final Linux device tree from the generated tree plus `system-user.dtsi` |
-| `Image` | AArch64 Linux kernel |
-| `petalinux-image-minimal-versal-iwg57m.cpio.gz` | Compressed initramfs payload |
-| `petalinux-image-minimal-versal-iwg57m.cpio.gz.u-boot` | Legacy-image-wrapped initramfs for component boot |
-| `uboot-env.txt` and `uboot.env` | Generated readable and binary U-Boot environments |
-| `*.wic` | Complete SD-card image |
+| Stable artifact | Typical timestamped form | Producer | Purpose |
+| --- | --- | --- | --- |
+| `boot.bin` / `BOOT-versal-iwg57m.bin` | `BOOT-versal-iwg57m-<timestamp>.bin` | Bootgen through the Yocto boot recipe | Normal Versal boot firmware package. |
+| `plm-versal-iwg57m.elf` | `plm-versal-iwg57m-...-<timestamp>.elf` | PLM firmware recipe | Platform Loader and Manager ELF. |
+| `psm-firmware-versal-iwg57m.elf` | `psm-firmware-versal-iwg57m-...-<timestamp>.elf` | PSM firmware recipe | Platform System Manager firmware. |
+| `arm-trusted-firmware.elf` | `arm-trusted-firmware-...-<timestamp>.elf` | TF-A recipe | BL31 secure firmware. |
+| `u-boot.elf` | `u-boot-versal-iwg57m-...elf` | U-Boot recipe | U-Boot ELF, including symbols needed when reconstructing a PDI. |
+| `system.dtb` | `versal-iwg57m-system-<timestamp>.dtb` | Device-tree recipe | Final Linux hardware description. |
+| `Image` | `Image-...-<timestamp>.bin` | Linux recipe | Uncompressed AArch64 kernel. |
+| `petalinux-image-minimal-versal-iwg57m.cpio.gz` | `...-<timestamp>.cpio.gz` | Image recipe | Compressed initramfs payload. |
+| `petalinux-image-minimal-versal-iwg57m.cpio.gz.u-boot` | `...-<timestamp>.cpio.gz.u-boot` | Image recipe | Legacy U-Boot-wrapped initramfs used by component boot paths. |
+| `uboot-env.txt` | no timestamped variant in this recipe | `uboot-env` recipe | Human-readable initial variables. |
+| `uboot.env` | no timestamped variant in this recipe | `uboot-env` recipe | Checksummed binary environment image. |
+| `petalinux-image-minimal-versal-iwg57m.wic` | `...-<timestamp>.wic` | Image recipe | Optional complete SD-card image. |
 
-`image.ub` is not produced by the wrapper shown above. In this lab it is assembled later from `Image`, `system.dtb`, and the compressed root filesystem by the Boot GUI or an equivalent `mkimage` step. Keep that distinction visible when diagnosing stale files.
+The handoff DTB and `base-design.pdi` used to reconstruct a custom PDI may be found in `boot.bin-extracted/` after an extraction workflow. They are not interchangeable with the final Linux `system.dtb`.
 
-## Verify the result before booting
+## What this page does not build
 
-Confirm that the expected symlinks resolve and that the custom packages reached the image manifest:
+The following are later, host-side workflow outputs rather than guaranteed products of `./build-image.sh`:
+
+- a FIT `image.ub` assembled from `Image`, `system.dtb`, and an initramfs;
+- `boot.cmd` and its `mkimage`-wrapped `boot.scr`;
+- `qspi-boot.cmd`, `qspi-boot.scr`, or provisioning scripts;
+- a reconstructed temporary JTAG PDI and its XSDB TCL file;
+- a generated QSPI layout JSON or custom-PLM `BOOT.bin`.
+
+Some of these names may already exist in the deploy directory after another tool has run. Their presence alone does not prove the current BitBake invocation produced them. Check timestamps and preserve the command log with the artifact.
+
+## Verify the build
+
+Confirm that the stable links resolve and the custom packages reached the image manifest:
 
 ```bash
 DEPLOY=build/tmp/deploy/images/versal-iwg57m
@@ -166,14 +171,4 @@ grep -E '^(bootscript|network-fallback|kernel-modules) ' \
   "$DEPLOY/petalinux-image-minimal-versal-iwg57m.manifest"
 ```
 
-Expected package evidence includes `bootscript`, `network-fallback`, and `kernel-modules`. Also record the XSA checksum and the resolved artifact names with the test log; that makes a later boot failure traceable to an exact build rather than simply “the 2025.2 image.”
-
-## Hand-off to the Boot GUI
-
-With these files built, the GUI can consume them without inventing firmware:
-
-- JTAG TFTP and NFS use `boot.bin`, `Image`, `system.dtb`, and the selected root filesystem strategy.
-- Full JTAG PDI reconstruction uses the base PDI, PLM, PSM, TF-A, U-Boot ELF, and handoff DTB extracted from or built alongside `boot.bin`.
-- QSPI provisioning uses the boot image plus separate kernel, DTB, rootfs, environment, and script artifacts according to the configured partition map.
-
-Only after this build is repeatable do we move on to the physical FMC experiment.
+Record the XSA checksum, resolved timestamped artifact names, and build log with the test result. That turns a future boot failure into a comparison against a known build rather than simply “the 2025.2 image.”
