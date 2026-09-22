@@ -8,24 +8,7 @@ categories = ["Board Bring-Up"]
 
 This experiment boots a complete Linux system over JTAG without writing QSPI. The Versal Boot GUI combines the firmware chain, U-Boot, a generated U-Boot script, and a Linux FIT into one temporary PDI. Bootgen packages the PDI; XSDB transfers it to the board through `hw_server`.
 
-```text
-base-design.pdi + PLM + PSM + TF-A + U-Boot + handoff DTB
-                              +
-                 boot.scr + image.ub
-                              |
-                              v
-                jtag_boot_gui.bif
-                              |
-                           Bootgen
-                              |
-                 BOOT_JTAG_IMAGEUB.pdi
-                              |
-                    XSDB -> hw_server
-                              |
-                    Versal PMC over JTAG
-                              |
-                 U-Boot -> bootm image.ub
-```
+![Full JTAG PDI generation and boot flow](/images/jtag-boot-flow.png)
 
 Everything loaded by this flow is volatile. Resetting or removing power discards it. This operation does **not** erase, write, or otherwise provision QSPI.
 
