@@ -1,4 +1,5 @@
 <figure class="lab-figure">
-  <img src="{{ (.Get "src") | relURL }}" alt="{{ .Get "alt" }}" loading="lazy">
+  {{ $src := .Get "src" }}
+  <img src="{{ if or (hasPrefix $src "http://") (hasPrefix $src "https://") }}{{ $src }}{{ else }}{{ $src | relURL }}{{ end }}" alt="{{ .Get "alt" }}" loading="lazy">
   {{ with .Get "caption" }}<figcaption>{{ . }}</figcaption>{{ end }}
 </figure>

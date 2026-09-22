@@ -1,12 +1,13 @@
 +++
-title = "Teaching a Passive FMC Breakout to Identify Itself"
+title = "Experiment 002: Teaching a Passive FMC Breakout to Identify Itself"
+slug = "teaching-a-passive-fmc-breakout-to-identify-itself"
 date = 2026-09-22T00:00:00-07:00
 description = "Bring up the iWave G57M safely, add an AT24C64 FMC FRU, preserve JTAG continuity, and prove that the carrier selected the intended 1.2 V VADJ rail."
 tags = ["FMC", "FRU", "I2C", "JTAG", "U-Boot"]
 categories = ["Board Bring-Up"]
 +++
 
-This is the starting point for the lab: an iWave G57M Versal AI Edge VE2302 SOM on a G57D R2.0 development carrier, followed by one controlled hardware change. The change is a passive FMC LPC breakout with a small EEPROM that makes the card identifiable to the carrier.
+With the software baseline reproduced, the second experiment makes one controlled hardware change to the iWave G57M Versal AI Edge VE2302 SOM and G57D R2.0 carrier. The change is a passive FMC LPC breakout with a small EEPROM that makes the card identifiable to the carrier.
 
 The result is useful, but the path exposed two details that are easy to miss: the EEPROM protocol expected by this U-Boot build and the effect of FMC presence on the JTAG chain.
 
@@ -23,8 +24,6 @@ iWave's [official getting-started guide](https://iwave-global.com/knowledge-base
 | Serial console | 115200 baud, 8 data bits, no parity, 1 stop bit, no flow control |
 
 Do this first with the FMC breakout disconnected. Confirm that serial output appears and that the host can scan the onboard JTAG chain. That gives every later failure a useful boundary.
-
-{{< lab-figure src="images/g57m-platform-map.svg" alt="Functional connection map for the iWave G57M development platform" caption="A functional bench map, not a physical connector-orientation drawing. Confirm connector locations and switch positions against the carrier documentation." >}}
 
 > **Power boundary:** do not insert or remove the SOM or FMC breakout with power applied. Set the FMC VADJ select switch before power-up. This experiment uses **1.2 V** VADJ.
 
@@ -48,10 +47,10 @@ Wire the AT24C64 as follows with the carrier powered off:
 | C30 `SCL` | `SCL` | FRU I2C clock |
 | C31 `SDA` | `SDA` | FRU I2C data |
 | FMC ground | `GND`, `A0`, `A1`, `A2`, `WP` | Address 0x50; writes enabled |
-| H2 `PRSNT_M2C_L` | Ground | Assert mezzanine presence |
+| H2 `PRSNT_M2C_L` | FMC Ground | Assert mezzanine presence |
 | D30 `JTAG TDI` | D31 `JTAG TDO` | Passive scan-chain bypass |
 
-{{< lab-figure src="images/fmc-fru-wiring.svg" alt="AT24C64, presence, and passive JTAG bypass wiring on the FMC breakout" caption="Known-good passive breakout wiring. D30-to-D31 is required because this card has no JTAG-capable device." >}}
+{{< lab-figure src="https://i.ebayimg.com/images/g/7GIAAeSwEcxpQfuR/s-l1600.webp" alt="Passive FMC LPC breakout card with labeled C, D, G, and H signal headers" caption="The passive FMC LPC breakout used for this experiment. Product photograph from the irvinebreakoutelectronics listing; the added EEPROM and jumper wiring are not shown." >}}
 
 Grounding `PRSNT_M2C_L` made the carrier inspect the card, but it also inserted the FMC path into the JTAG chain. With no TAP on the passive breakout, the chain was open. Bridging D30 TDI directly to D31 TDO restored the onboard USB JTAG scan chain while presence remained asserted.
 

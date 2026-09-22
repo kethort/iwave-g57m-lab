@@ -18,9 +18,15 @@ Start with iWave's [official getting-started procedure](https://iwave-global.com
 
 > Never insert or remove the SOM or an FMC card while the carrier is powered. Verify the carrier revision and switch labels against its documentation before relying on a photograph or another revision's switch positions.
 
-## First experiment
+## Experiment 001: reproduce the software baseline
 
-The first lab entry turns a passive FMC LPC breakout into a carrier-recognized mezzanine by adding a VITA/IPMI FRU EEPROM. It also documents a less obvious requirement discovered at the bench: asserting FMC presence placed the empty FMC JTAG path in the scan chain, so the passive card required a TDI-to-TDO bypass.
+Before modifying the hardware, build the boot firmware, U-Boot, Linux kernel, device tree, and root filesystem from the iWave BSP. The first entry maps the current `meta-iwave` recipes and shows which generated files are required by each GUI boot flow.
+
+[Build the G57M software baseline ->]({{< ref "/posts/building-the-iwave-petalinux-baseline" >}})
+
+## Experiment 002: identify a passive FMC card
+
+The second entry turns a passive FMC LPC breakout into a carrier-recognized mezzanine by adding a VITA/IPMI FRU EEPROM. It also documents a less obvious requirement discovered at the bench: asserting FMC presence placed the empty FMC JTAG path in the scan chain, so the passive card required a TDI-to-TDO bypass.
 
 [Open the FMC FRU bring-up ->]({{< ref "/posts/fmc-fru-passive-breakout" >}})
 

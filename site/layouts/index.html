@@ -1,18 +1,18 @@
 {{ define "main" }}
 <section class="hero">
   <div class="hero-copy">
-    <p class="eyebrow">FIELD NOTE 001 / HARDWARE BASELINE</p>
-    <h1>Prove the board before changing the design.</h1>
-    <p class="lede">A measured starting point for the iWave G57M: power, serial, JTAG, and a passive FMC card that identifies itself through a verified FRU EEPROM.</p>
+    <p class="eyebrow">FIELD NOTE 001 / REPRODUCIBLE BUILD</p>
+    <h1>Build the baseline before changing the board.</h1>
+    <p class="lede">Start from iWave's G57M BSP, make each PetaLinux recipe change explicit, and identify the exact artifacts consumed by JTAG, TFTP, NFS, and QSPI workflows.</p>
     <div class="hero-actions"><a class="button primary" href="{{ "start-here/" | relURL }}">Start at the bench</a><a class="button" href="{{ site.Params.github }}">Get the GUI</a></div>
   </div>
-  <div class="instrument" aria-label="Bring-up validation path">
-    <div class="instrument-head"><span>VALIDATION PATH</span><span class="live">KNOWN GOOD</span></div>
+  <div class="instrument" aria-label="Image build validation path">
+    <div class="instrument-head"><span>BUILD PATH</span><span class="live">REPRODUCIBLE</span></div>
     <div class="trace"><i></i><i></i><i></i><i></i></div>
-    <ol><li><b>01</b> Power + ESD</li><li><b>02</b> UART + JTAG</li><li><b>03</b> FMC presence</li><li><b>04</b> FRU + VADJ</li></ol>
+    <ol><li><b>01</b> iWave BSP</li><li><b>02</b> meta-iwave</li><li><b>03</b> BitBake</li><li><b>04</b> Deploy images</li></ol>
   </div>
 </section>
-<section class="status-strip"><span><b>BOARD</b> G57M + G57D R2.0</span><span><b>SILICON</b> Versal AI Edge VE2302</span><span><b>FIRST RESULT</b> FMC FRU at 0x50</span></section>
+<section class="status-strip"><span><b>MACHINE</b> versal-iwg57m</span><span><b>DISTRO</b> PetaLinux / systemd</span><span><b>TARGET</b> petalinux-image-minimal</span></section>
 <section class="latest">
   <div class="section-heading"><p class="eyebrow">LATEST ENTRIES</p><h2>From the lab notebook</h2></div>
   <div class="card-grid">{{ range first 3 (where site.RegularPages "Section" "posts") }}<article class="note-card"><p class="note-meta">{{ .Date.Format "2006.01.02" }} / {{ index (.Params.tags | default (slice "LAB")) 0 }}</p><h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3><p>{{ .Description }}</p><a class="read" href="{{ .RelPermalink }}">Open log <span>-></span></a></article>{{ end }}</div>
