@@ -133,10 +133,10 @@ PMIC-1: LD03 (XPIO BANK 703) set to 1.200V
 PMIC-1: LD04 (HD BANK 302) set to 1.800V
 ```
 
-{{< lab-figure src="images/fmc-boot-proof.svg" alt="Validation chain from EEPROM FRU through PLM to carrier power rails" caption="The useful finish line is a chain of evidence: EEPROM ACK, parsed FRU, intact JTAG, selected VADJ, and measured or reported rail configuration." >}}
-
 The validated operating point is **1.2 V for XPIO banks 702 and 703** and **1.8 V for HD bank 302**. Do not infer that every FMC card is compatible with this setting; the card design and its FRU must agree with the carrier configuration.
 
 ## What this baseline buys us
 
-The carrier can now detect the passive mezzanine, parse its identity, select the requested VADJ, and retain a working onboard JTAG chain. Future GPIO, PL, RPU, IPI, and DMA experiments can build from that state without rediscovering whether a missing target is a software problem, an open scan chain, or an unrecognized FMC card.
+The carrier can now detect the passive mezzanine, parse its identity, select the requested VADJ, and retain a working onboard JTAG chain. Future GPIO and PL experiments can build from that state without rediscovering whether a missing target is a software problem, an open scan chain, or an unrecognized FMC card.
+
+{{< lab-figure src="images/FMC_EEPROM.png" alt="FMC EEPROM" >}}
