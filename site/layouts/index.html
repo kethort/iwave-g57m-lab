@@ -1,18 +1,17 @@
 {{ define "main" }}
 <section class="hero">
   <div class="hero-copy">
-    <p class="eyebrow">FIELD NOTE 001 / REPRODUCIBLE BUILD</p>
-    <h1>Build the baseline before changing the board.</h1>
-    <p class="lede">Start from iWave's G57M BSP, make each PetaLinux recipe change explicit, and identify the exact artifacts consumed by JTAG, TFTP, NFS, and QSPI workflows.</p>
+    <p class="eyebrow">IWAVE G57M / VERSAL AI EDGE VE2302</p>
+    <h1>Board bringup and experiments</h1>
+    <p class="lede">A bench notebook for reproducing the iWave PetaLinux baseline, packaging JTAG and QSPI boot artifacts, and documenting the experiments that follow.</p>
     <div class="hero-actions"><a class="button primary" href="{{ "start-here/" | relURL }}">Start at the bench</a><a class="button" href="{{ site.Params.github }}">Get the GUI</a></div>
   </div>
-  <div class="instrument" aria-label="Image build validation path">
-    <div class="instrument-head"><span>BUILD PATH</span><span class="live">REPRODUCIBLE</span></div>
-    <div class="trace"><i></i><i></i><i></i><i></i></div>
-    <ol><li><b>01</b> iWave BSP</li><li><b>02</b> meta-iwave</li><li><b>03</b> BitBake</li><li><b>04</b> Deploy images</li></ol>
-  </div>
+  <figure class="board-hero">
+    <img src="{{ "images/versal-ai-devkit-top.png" | relURL }}" alt="iWave Versal AI Edge development platform top view">
+    <figcaption>iWave G57D carrier with G57M Versal AI Edge SOM. Image source: iWave getting-started guide.</figcaption>
+  </figure>
 </section>
-<section class="status-strip"><span><b>MACHINE</b> versal-iwg57m</span><span><b>DISTRO</b> PetaLinux / systemd</span><span><b>TARGET</b> petalinux-image-minimal</span></section>
+<section class="status-strip"><span><b>BOARD</b> G57M VE2302 SOM + G57D carrier</span><span><b>BUILD</b> PetaLinux / Yocto / Vitis 2025.2</span><span><b>FLOWS</b> JTAG, TFTP, NFS, QSPI</span></section>
 <section class="latest">
   <div class="section-heading"><p class="eyebrow">LATEST ENTRIES</p><h2>From the lab notebook</h2></div>
   <div class="card-grid">{{ range first 3 (where site.RegularPages "Section" "posts") }}<article class="note-card"><p class="note-meta">{{ .Date.Format "2006.01.02" }} / {{ index (.Params.tags | default (slice "LAB")) 0 }}</p><h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3><p>{{ .Description }}</p><a class="read" href="{{ .RelPermalink }}">Open log <span>-></span></a></article>{{ end }}</div>
