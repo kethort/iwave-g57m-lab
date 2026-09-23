@@ -23,14 +23,25 @@
             {{ if lt (add $index 1) (len $experiments) }}{{ $next = index $experiments (add $index 1) }}{{ end }}
           {{ end }}
         {{ end }}
-        {{ if or $prev $next }}
+        {{ if gt (len $experiments) 0 }}
           <div class="experiment-nav" aria-label="Experiment navigation">
             <p>EXPERIMENT FLOW</p>
-            {{ with $prev }}
-              <a class="experiment-link prev" href="{{ .RelPermalink }}"><span>Previous</span><strong>{{ .Title }}</strong></a>
+            {{ if $prev }}
+              <a class="experiment-link prev" href="{{ $prev.RelPermalink }}">
+                <span>Previous</span>
+                <strong>{{ $prev.Title }}</strong>
+              </a>
+            {{ else }}
+              <a class="experiment-link prev" href="{{ "start-here/" | relURL }}">
+                <span>Previous</span>
+                <strong>Start Here</strong>
+              </a>
             {{ end }}
-            {{ with $next }}
-              <a class="experiment-link next" href="{{ .RelPermalink }}"><span>Next</span><strong>{{ .Title }}</strong></a>
+            {{ if $next }}
+              <a class="experiment-link next" href="{{ $next.RelPermalink }}">
+                <span>Next</span>
+                <strong>{{ $next.Title }}</strong>
+              </a>
             {{ end }}
           </div>
         {{ end }}
