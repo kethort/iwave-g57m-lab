@@ -181,6 +181,17 @@ For a useful lab record, save:
 
 The result to look for is repeated RPU messages showing a successful response interrupt and incremented counter, paired with PLM messages showing the user-module command handler receiving and responding to requests.
 
+The next step is to prove the same behavior from the debugger, not only from UART. Capture XSDB or Vitis debugger sessions that attach to the already-running PPU/PLM and RPU firmware without resetting the board. The useful evidence is:
+
+- the selected PPU and RPU targets in the debugger target list;
+- symbols loaded from the exact `plm.elf` and `rpu_ipi_ping_pong.elf` used to boot;
+- program counters, stack pointers, and key registers showing both processors in expected runtime state;
+- breakpoints or watchpoints in the PLM user-module command handler and the RPU IPI response path;
+- memory views of the IPI request and response buffers before and after a ping-pong transaction;
+- a log showing that attaching the debugger did not require rebuilding, reflashing, or restarting the system.
+
+That debugger capture is important because it separates "the firmware printed something once" from "the expected PPU and RPU code is alive, symbolized, inspectable, and synchronized while the system is running."
+
 ## Publishing the firmware source
 
 The public source repo should contain the automation and maintained source only:
