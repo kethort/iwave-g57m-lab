@@ -103,6 +103,21 @@ build/PLM_RPU_PRODUCTION.pdi
 
 Keep these generated outputs out of the source repository. The repeatable inputs are the script, the custom PLM source, the RPU source, the XSA checksum, and the exact Vitis release.
 
+## Boot evidence
+
+A successful custom PLM is visible before U-Boot starts. In this run, the user module initialized immediately after the PLM banner and before the boot PDI load:
+
+```text
+[0.061]Xilinx Versal Platform Loader and Manager
+[0.108]Release 2025.2   Sep 23 2026  -  00:18:59
+[0.531]Non Secure Boot
+[0.560]PLM IPI PING-PONG: module initialization started
+[0.612]PLM IPI PING-PONG: registered module ID=0x80, API=1
+[4.533]***********Boot PDI Load: Started***********
+```
+
+That placement matters. These lines prove that the custom `plm.elf` is the PLM running on the PMC PPU, not just a file that was built on the host. The module registers before TF-A, U-Boot, or Linux can print anything, so this is the earliest practical serial evidence that the custom PLM image is active.
+
 ## The user-module build bug
 
 Enabling `XILPLMI_user_modules_count` can expose a Vitis 2025.2 generated-BSP issue in the AMD/Xilinx `xilplmi` library. The generated `xplmi_cmd.h` can reference `XPLMI_USER_MODULE_START_INDEX` before that macro is made visible from `xplmi_modules.h`, so the platform build fails inside generated PLM support code before the custom user-module source is the meaningful failure point.

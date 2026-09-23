@@ -112,7 +112,56 @@ i2c md 0x50 0x0000.2 0x80
 frudump 3 50
 ```
 
-The expected evidence is:
+On the working setup, U-Boot sees the FMC FRU EEPROM at `0x50`, reports a two-byte internal offset, and can dump the first 128 bytes:
+
+```text
+IWG57M> i2c dev 3
+Setting bus to 3
+IWG57M> i2c probe
+Valid chip addresses: 36 48 49 50 52 53 56 58 59 5E 6A 6B 70 71
+IWG57M> i2c olen 50
+2
+IWG57M> i2c md 0x50 0x0000.2 0x80
+0000: 01 00 00 01 00 08 00 f6 01 07 00 00 00 00 c6 43    ...............C
+0010: 75 73 74 6f 6d d5 47 35 37 4d 20 46 4d 43 20 4c    ustom.G57M FMC L
+0020: 50 43 20 42 72 65 61 6b 6f 75 74 c4 30 30 30 31    PC Breakout.0001
+0030: cb 46 4d 43 2d 4c 50 43 2d 30 30 31 c0 c1 00 1f    .FMC-LPC-001....
+```
+
+The decoded FRU confirms the identity fields and the voltage records used by the carrier:
+
+```text
+IWG57M> frudump 3 50
+Manufacturer    : Custom
+Product Name    : G57M FMC LPC Breakout
+Serial Number   : 0001
+Part Number     : FMC-LPC-001
+FRU File ID     : Empty Field
+Custom Fields:
+DC Load
+  Output number: 0 (P1 VADJ)
+  Nominal Volts:         1200 (mV)
+  minimum voltage:       1000 (mV)
+  maximum voltage:       1500 (mV)
+DC Load
+  Output number: 1 (P1 3P3V)
+  Nominal Volts:         3300 (mV)
+  minimum voltage:       3000 (mV)
+  maximum voltage:       3600 (mV)
+DC Load
+  Output number: 2 (P1 12P0V)
+  Nominal Volts:         12000 (mV)
+  minimum voltage:       10800 (mV)
+  maximum voltage:       13200 (mV)
+Single Width Card
+P1 is LPC
+P1 Bank A Signals needed 68
+P1 Bank B Signals needed 0
+P1 GBT Transceivers needed 0
+Max JTAG Clock 0
+```
+
+The important evidence is:
 
 1. `i2c probe` finds `0x50`.
 2. `i2c olen 50` reports a two-byte offset.
@@ -121,6 +170,34 @@ The expected evidence is:
 5. JTAG enumeration still works through the D30-to-D31 bypass.
 
 The `.2` suffix in `0x0000.2` is important: it explicitly selects the two-byte internal address used by the AT24C64.
+
+## PetaLinux and Yocto EEPROM type
+
+The two-byte offset behavior is also controlled by the device tree that U-Boot receives from the PetaLinux/Yocto build. In this workspace, the FMC EEPROM node comes from:
+
+```text
+sources/meta-iwave/recipes-bsp/device-tree/files/system-user.dtsi
+```
+
+The relevant node is on the FMC I2C mux channel and describes address `0x50` as a two-byte-addressed AT24-style device:
+
+```dts
+i2c@2 {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        reg = <2>;
+
+        eeprom2: eeprom@50 {
+                compatible = "atmel,24c32";
+                reg = <0x50>;
+                pagesize = <32>;
+                address-width = <16>;
+                size = <32768>;
+        };
+};
+```
+
+For this experiment, the important property is `address-width = <16>;`. That is what matches the `i2c olen 50` result of `2` and the `i2c md 0x50 0x0000.2 ...` access form. If the hardware were changed to a one-byte-addressed EEPROM, the PetaLinux/Yocto device tree would need to be changed accordingly and U-Boot would need to be rebuilt with the updated DTB. Do not change only the Arduino programmer; U-Boot, the EEPROM part, and the FRU image access width must agree.
 
 ## Proof at boot
 
