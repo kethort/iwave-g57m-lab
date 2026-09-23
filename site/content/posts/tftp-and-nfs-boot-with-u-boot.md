@@ -11,7 +11,7 @@ This experiment turns the host into a network boot server for the iWave G57M. TF
 
 There are two related workflows:
 
-- **JTAG-assisted network boot:** the Boot GUI loads a temporary U-Boot session over JTAG, then U-Boot downloads the Linux payloads from the host.
+- **JTAG-assisted network boot:** the Boot GUI creates a temporary U-Boot `boot.cmd`, compiles it to `boot.scr`, loads that script into RAM over JTAG, and then U-Boot downloads the Linux payloads from the host.
 - **Automatic U-Boot network boot:** the U-Boot environment selects a network boot command at reset, without the GUI loading a temporary script.
 
 For JTAG-assisted network boot, set SW4 for **PS JTAG** before power-up. For persistent QSPI boot tests that use these same U-Boot network commands after reset, set SW4 for **QSPI**. The switch table is in the [reference page]({{< ref "/reference#sw4-boot-selection" >}}).
@@ -119,7 +119,16 @@ sudo exportfs -v
 
 The `no_root_squash` option is convenient for an embedded development rootfs because the target boots as root and needs normal root permissions inside the export. Do not use that casually on an untrusted network.
 
-## Boot with the GUI
+## Boot with the GUI-generated script
+
+In the GUI-driven JTAG modes used here, the important artifact is the generated U-Boot script. The GUI writes a text `boot.cmd`, compiles it with `mkimage` into a legacy U-Boot script image named `boot.scr`, and uses XSDB/JTAG to place that script at the configured script address. U-Boot then prints:
+
+```text
+JTAG: Trying to boot script at 20000000
+## Executing script at 20000000
+```
+
+Everything after that is ordinary U-Boot behavior from the script. The script may TFTP a FIT image, or it may TFTP separate `Image` and `system.dtb` files and pass NFS root arguments to Linux. The script is temporary; it is not a saved U-Boot environment and it does not by itself change QSPI flash.
 
 For **JTAG TFTP**, open **JTAG Modes**, select `jtag-tftp`, and provide either:
 
@@ -132,6 +141,26 @@ The generated script performs the essential U-Boot operation:
 tftpboot ${fit_addr_r} ${serverip}:image.ub
 bootm ${fit_addr_r}
 ```
+
+The successful TFTP FIT evidence looks like this:
+
+```text
+JTAG: Trying to boot script at 20000000
+## Executing script at 20000000
+TFTP from server 192.168.1.10; our IP address is 192.168.1.20
+Filename 'image.ub'.
+Load address: 0x8000000
+Bytes transferred = 215369292 (cd6464c hex)
+## Loading kernel from FIT Image at 08000000 ...
+## Loading ramdisk from FIT Image at 08000000 ...
+## Loading fdt from FIT Image at 08000000 ...
+Starting kernel ...
+[    0.000000] Kernel command line: console=ttyAMA0,115200 earlycon=pl011,mmio32,0xff000000 clk_ignore_unused ignore_loglevel loglevel=8 rdinit=/init
+Rootfs Version : iW-PRHRZ-SC-01-R2.2-REL1.0-SD2.0-Yocto-Scarthgap-V25.2-Base
+versal-iwg57m login: root (automatic login)
+```
+
+That path is a FIT boot. U-Boot receives one `image.ub`, verifies the FIT subimages, and boots the kernel, ramdisk, and DTB from that FIT.
 
 For **JTAG NFS**, select `jtag-nfs` and provide:
 
@@ -162,9 +191,31 @@ ip=192.168.1.20:192.168.1.10:192.168.1.1:255.255.255.0:versal:eth0:off
 
 If the kernel reaches `VFS: Cannot open root device` or tries `/dev/root`, inspect the printed `Kernel command line` first. That usually means the NFS `bootargs` did not reach Linux or the selected U-Boot command was not the NFS command.
 
+The successful NFS evidence looks different because only the kernel and DTB are fetched with TFTP:
+
+```text
+JTAG: Trying to boot script at 20000000
+## Executing script at 20000000
+TFTP from server 192.168.1.10; our IP address is 192.168.1.20
+Filename 'Image'.
+Load address: 0x200000
+Bytes transferred = 31982080 (1e80200 hex)
+TFTP from server 192.168.1.10; our IP address is 192.168.1.20
+Filename 'system.dtb'.
+Load address: 0x40000000
+Bytes transferred = 38004 (9474 hex)
+Starting kernel ...
+[    0.000000] Kernel command line: console=ttyAMA0,115200 earlycon=pl011,mmio32,0xff000000 clk_ignore_unused ignore_loglevel loglevel=8 root=/dev/nfs rw rootwait nfsroot=192.168.1.10:/export/versal-rootfs,tcp,v3 ip=192.168.1.20:192.168.1.10:0.0.0.0:255.255.255.0:versal:eth0:off
+[    6.529022] VFS: Mounted root (nfs filesystem) on device 0:22.
+Rootfs Version : iW-PRHRZ-SC-01-R2.0-REL0.1-SD2.0-Petalinux24.2-Base
+versal-iwg57m login: root (automatic login)
+```
+
+That path proves the script passed `root=/dev/nfs`, `nfsroot=...`, and `ip=...` to Linux. The decisive line is `VFS: Mounted root (nfs filesystem)`.
+
 ## Automatic U-Boot boot modes
 
-The lab U-Boot layer adds named boot commands so the board can boot over the network directly from U-Boot. The relevant files are:
+The previous section is the GUI/JTAG script path. Separately, the lab U-Boot layer also adds named boot commands so the board can boot over the network directly from U-Boot when the saved environment selects one of those commands. The relevant files are:
 
 | File | Role |
 | --- | --- |
