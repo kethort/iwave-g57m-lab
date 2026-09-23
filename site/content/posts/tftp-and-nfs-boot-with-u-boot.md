@@ -14,6 +14,8 @@ There are two related workflows:
 - **JTAG-assisted network boot:** the Boot GUI loads a temporary U-Boot session over JTAG, then U-Boot downloads the Linux payloads from the host.
 - **Automatic U-Boot network boot:** the U-Boot environment selects a network boot command at reset, without the GUI loading a temporary script.
 
+For JTAG-assisted network boot, set SW4 for **PS JTAG** before power-up. For persistent QSPI boot tests that use these same U-Boot network commands after reset, set SW4 for **QSPI**. The switch table is in the [reference page]({{< ref "/reference#sw4-boot-selection" >}}).
+
 Both paths depend on the same network facts: the host IP, the board IP, the Ethernet device selected by U-Boot, the TFTP root, and, for NFS, an exported root filesystem.
 
 ## Why use each mode

@@ -11,7 +11,7 @@ This experiment boots a complete Linux system over JTAG without writing QSPI. Th
 
 {{< lab-figure src="images/jtag-boot-flow.png" alt="Full JTAG PDI generation and boot flow" >}}
 
-Everything loaded by this flow is volatile. Resetting or removing power discards it. This operation does **not** erase, write, or otherwise provision QSPI.
+Everything loaded by this flow is volatile (resides in DDR memory). Resetting or removing power discards it. This operation does **not** erase, write, or otherwise provision QSPI.
 
 ## What the GUI needs
 
@@ -135,7 +135,7 @@ XSDB is the tool that transfers the PDI. `hw_server` owns target discovery and t
 
 ## Run the flow
 
-1. Set the carrier switches for JTAG boot before power-up and connect the onboard debug/JTAG cable.
+1. Set SW4 for **PS JTAG** before power-up; see the [SW4 boot selection table]({{< ref "/reference#sw4-boot-selection" >}}). Then connect the onboard debug/JTAG cable.
 2. Open a 115200 8N1 serial console so PLM and U-Boot output are visible.
 3. Start `hw_server` or verify that the GUI/container can reach the configured server URL.
 4. In **JTAG Modes**, select `jtag-full-pdi` and verify every path and address.

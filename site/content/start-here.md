@@ -13,7 +13,7 @@ Start with iWave's [official getting-started procedure](https://iwave-global.com
 - use the supplied 12 V power supply at J2;
 - connect the combined debug UART and JTAG cable at J8;
 - set SW3 to OFF for JTAG;
-- select the intended boot mode at SW4 before applying power;
+- select the intended boot mode at SW4 before applying power; see the [SW4 boot selection table]({{< ref "/reference#sw4-boot-selection" >}});
 - configure the console for 115200 baud, 8 data bits, no parity, one stop bit, and no flow control.
 
 ## Experiment 001: reproduce the software baseline

@@ -15,6 +15,19 @@ description = "Known-good G57M carrier connections and fast checks used at the b
 | FMC connector | J20 FMC+ HSPC |
 | FMC VADJ | Carrier VADJ switch ON, 1.2 V |
 
+## SW4 boot selection
+
+Set SW4 before applying power. The Boot GUI JTAG flows require **PS JTAG** so XSDB can load a temporary PDI through the PMC. Persistent flash tests require **QSPI** so the board boots from the programmed QSPI contents after reset.
+
+| Boot device | SW4.1 / PS Mode 0 | SW4.2 / PS Mode 1 | SW4.3 / PS Mode 2 | Use in these notes |
+| --- | --- | --- | --- | --- |
+| PS JTAG | ON | ON | ON | Full JTAG PDI, JTAG TFTP, JTAG NFS, temporary JTAG-assisted QSPI provisioning |
+| SD1 | OFF | ON | OFF | SD-card experiments |
+| QSPI | ON | OFF | ON | Normal persistent QSPI boot |
+| eMMC | OFF | OFF | ON | eMMC boot experiments |
+
+The carrier switch block also has a fourth physical position in the package photo. The documented boot selection for these modes is controlled by SW4.1 through SW4.3.
+
 ## FMC breakout signals
 
 | Signal | FMC position | Use |
