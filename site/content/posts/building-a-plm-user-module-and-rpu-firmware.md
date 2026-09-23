@@ -39,6 +39,8 @@ The G57M boot flow is staged. Each stage proves enough hardware state to load th
 
 The custom PLM in this page therefore sits very early in the chain. If the PLM user module is wrong, the system may fail before U-Boot or Linux has any chance to report a normal software error.
 
+The same boot sequence is shown as a [Mermaid diagram in the reference page]({{< ref "/reference#versal-boot-chain-and-programmable-firmware-domains" >}}).
+
 ## Inputs and boundaries
 
 | Input | Value |
