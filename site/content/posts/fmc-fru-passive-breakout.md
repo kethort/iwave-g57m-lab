@@ -32,7 +32,7 @@ Do this first with the FMC breakout disconnected. Confirm that serial output app
 
 - iWave G57M VE2302 SOM and G57D R2.0 carrier.
 - Passive [FMC LPC breakout, item 357886097671](https://www.ebay.com/itm/357886097671).
-- [AT24C64-compatible 64-Kbit I2C EEPROM](https://www.microchip.com/en-us/product/at24c64b).
+- [MusRock AT24C64 I2C EEPROM module](https://www.amazon.com/MusRock-AT24C64-EEPROM-Module-Interface/dp/B0FTFXM5CW/).
 - Arduino Uno for off-board EEPROM programming.
 - Optional J19 breakout: [Samtec SFSD-30-28-G-06.00-S](https://www.digikey.com/en/products/detail/samtec-inc/SFSD-30-28-G-06-00-S/8420769), used for later PS GPIO work but not required to program this FRU.
 

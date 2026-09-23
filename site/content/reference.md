@@ -58,4 +58,4 @@ The EEPROM should ACK at `0x50`; `i2c olen 50` should report an offset length of
 
 - [Samtec SFSD-30-28-G-06.00-S J19 cable](https://www.digikey.com/en/products/detail/samtec-inc/SFSD-30-28-G-06-00-S/8420769)
 - [Passive FMC LPC breakout, eBay item 357886097671](https://www.ebay.com/itm/357886097671)
-- [Microchip AT24C64B product family](https://www.microchip.com/en-us/product/at24c64b)
+- [MusRock AT24C64 I2C EEPROM module](https://www.amazon.com/MusRock-AT24C64-EEPROM-Module-Interface/dp/B0FTFXM5CW/)
