@@ -143,6 +143,42 @@ The complete action builds or selects the permanent BOOT image, builds the tempo
 
 The provisioning script writes `BOOT.bin` last. That reduces the chance that an earlier failed Linux payload write destroys the previously bootable image at offset `0x0`.
 
+For the lighter **QSPI boot install from JTAG TFTP config** path, the GUI output begins by building the custom BOOT image, generating the normal JTAG TFTP script, staging `image.ub`, and then invoking `program_flash` for the QSPI BOOT slot:
+
+```text
+[HOST] Starting QSPI boot install from JTAG TFTP config
+Generated custom bootgen BIF: /work/output/bootgen-custom-plm.bif
+[INFO]   : Bootimage generated successfully
+Generated custom QSPI BOOT image: /work/output/BOOT-custom-plm.bin
+Boot mode must remain JTAG TFTP for this install: JTAG TFTP
+BOOT image to flash   : /work/output/BOOT-custom-plm.bin
+QSPI flash offset     : 0x00000000
+QSPI script offset    : 0x0ff80000
+QSPI flash type       : qspi-x4-dual_stacked
+Flash QSPI boot.scr   : yes
+Writing boot.cmd
+Compiling boot.scr with mkimage
+Running mkimage -A arm64 -T script -C none -n JTAG TFTP boot -d /work/output/boot.cmd /work/output/boot.scr
+TFTP copy complete (FIT): /srv/tftp/image.ub
+Flashing BOOT/U-Boot image to QSPI.
+Running program_flash -f /work/output/BOOT-custom-plm.bin -offset 0x00000000 -flash_type qspi-x4-dual_stacked -pdi /work/output/BOOT-custom-plm.bin -url TCP:127.0.0.1:3121
+```
+
+`program_flash` starts a mini U-Boot image internally and probes the flash before writing:
+
+```text
+****** Program Flash v2025.2 (64-bit)
+Connected to hw_server @ TCP:127.0.0.1:3121
+Using default mini u-boot image file - /development/2025.2/data/xicom/cfgmem/uboot/versal_qspi_x4_dual_stacked_2048.bin
+Versal> sf probe 0 0 0
+SF: Detected mt25qu02g with page size 256 Bytes, erase size 64 KiB
+Sector size = 65536.
+```
+
+This log proves the host-side flash tool connected through `hw_server`, selected the Versal QSPI mini U-Boot, and saw the SPI-NOR device before programming. It is still only a provisioning step. It does not prove that the board will boot from QSPI until the board is powered down and restarted with the QSPI boot-mode switches selected.
+
+> **Required mode change after flashing:** when the QSPI flash operation finishes successfully, power the carrier off. Set SW4 to **QSPI** using the [SW4 boot selection table]({{< ref "/reference#sw4-boot-selection" >}}). Then power the carrier back on and watch the serial console. Leaving SW4 in **PS JTAG** will continue to select JTAG boot, even though QSPI now contains a bootable image.
+
 ## First Persistent Boot
 
 After a successful provisioning run:
@@ -154,6 +190,31 @@ After a successful provisioning run:
 5. Watch the serial console.
 
 The expected boot source changes from JTAG to QSPI. U-Boot should load its persistent environment and select the QSPI boot path. The board should not need the GUI, TFTP server, NFS export, or JTAG after this point.
+
+The first successful QSPI boot should make the mode change visible in the serial log:
+
+```text
+Loading Environment from SPIFlash... SF: Detected mt25qu02g with page size 256 Bytes, erase size 64 KiB, total 256 MiB
+OK
+Bootmode: QSPI_MODE_32
+```
+
+For the separate-component QSPI layout, U-Boot then reads the Linux payloads from the programmed offsets:
+
+```text
+SF: Detected mt25qu02g with page size 256 Bytes, erase size 64 KiB, total 256 MiB
+device 0 offset 0xa20000, size 0x9474
+SF: 38004 bytes @ 0xa20000 Read: OK
+device 0 offset 0xa80000, size 0x1e80200
+SF: 31982080 bytes @ 0xa80000 Read: OK
+device 0 offset 0x3080000, size 0xaeda7fa
+SF: 183347194 bytes @ 0x3080000 Read: OK
+## Flattened Device Tree blob at 40000000
+Starting kernel ...
+[    0.000000] Kernel command line: console=ttyAMA0,115200 earlycon=pl011,mmio32,0xff000000 clk_ignore_unused ignore_loglevel loglevel=8 rdinit=/init
+```
+
+The key difference from the JTAG/TFTP/NFS experiments is absence of host-side payload transfer. U-Boot is reading kernel, DTB, and rootfs bytes from QSPI flash with `sf read`.
 
 Useful U-Boot checks are:
 
