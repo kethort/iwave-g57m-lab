@@ -105,21 +105,15 @@ Keep these generated outputs out of the source repository. The repeatable inputs
 
 ## The user-module build bug
 
-The failure appears after enabling `XILPLMI_user_modules_count`. Vitis 2025.2 can generate xilplmi BSP headers such that `xplmi_cmd.h` needs `XPLMI_USER_MODULE_START_INDEX` before that macro is visible from `xplmi_modules.h`. The platform build can fail before the PLM application reaches the normal compile stage.
+Enabling `XILPLMI_user_modules_count` can expose a Vitis 2025.2 generated-BSP issue in the AMD/Xilinx `xilplmi` library. The generated `xplmi_cmd.h` can reference `XPLMI_USER_MODULE_START_INDEX` before that macro is made visible from `xplmi_modules.h`, so the platform build fails inside generated PLM support code before the custom user-module source is the meaningful failure point.
 
-This is documented here as a **Vitis 2025.2 generated-workspace problem**, not as a permanent rule about PLM user modules. The issue is the order and guarding of generated xilplmi header content in the local BSP output. Later Vitis revisions may generate the headers differently or may already contain a fix. In that case, this workaround should become unnecessary and should not be carried forward blindly.
+This is treated as a **Vitis 2025.2 generated-workspace problem**, not as a permanent limitation of PLM user modules and not as a board-specific source bug. The lab remains pinned to 2025.2 because the current iWave G57M material targets that release, but the workaround should be removed if a later Vitis release generates the `xilplmi` headers correctly.
 
-The lab stays pinned to 2025.2 because the current iWave G57M manufacturer BSP and development material used here cover that release. The failure itself is in the Vitis 2025.2 AMD/Xilinx generated BSP output for `xilplmi`, not in a board-specific source file from this lab. Mixing a newer Vitis release with a 2025.2 board support stack may introduce unrelated changes in generated platforms, firmware libraries, device-tree output, Bootgen behavior, or handoff assumptions. Until the vendor baseline moves forward, this note treats 2025.2 as the reproducible target and patches only the generated files needed to make that release build the requested PLM user module.
-
-The symptom that identifies this specific problem is a compile failure in generated xilplmi headers around `XPLMI_USER_MODULE_START_INDEX`, before the custom user-module source itself is the meaningful failure point. If a future release builds without that failure, leave the generated headers alone and remove or disable the patch step for that build.
-
-The same failure path can appear without this lab automation. Even a PLM-oriented example driven directly from the Vitis IDE can trip the generated-header dependency loop while the IDE is building or programming through the generated platform. That is the important clue: the script is not creating a new PLM circular dependency. It is exposing the same Vitis 2025.2 AMD/Xilinx generated BSP ordering problem that the IDE can encounter once PLM user-module support is involved.
-
-When this happens in the IDE, the useful evidence is not the active editor tab or the bare-metal example source. Look at the Vitis messages and generated `libsrc/xilplmi` paths. If the failure is in generated PLM/xilplmi files before application-specific code is the meaningful compile failure, treat it as this 2025.2 generated-workspace issue.
+The same symptom can appear from an IDE-driven PLM workflow as well as from this script. The useful clue is where the failure occurs: if Vitis reports errors in generated `libsrc/xilplmi` files around `XPLMI_USER_MODULE_START_INDEX`, the build is failing in generated BSP code before the user module itself is the primary suspect.
 
 {{< lab-figure src="images/vitis-2025-2-PLM-bsp-bug.png" alt="Vitis IDE 2025.2 showing generated PLM source and xilplmi build errors" caption="Vitis IDE 2025.2 can hit the same generated PLM/xilplmi dependency problem from an IDE-driven PLM workflow. The failure is in the generated BSP workspace, not in the user module source." >}}
 
-The build script fixes the generated workspace, not the AMD installed tool tree:
+The build script patches only the generated workspace, not the AMD installed tool tree:
 
 1. Set the `xilplmi` library parameter `XILPLMI_user_modules_count`.
 2. Generate or build the platform far enough for the BSP headers to exist.
@@ -127,7 +121,7 @@ The build script fixes the generated workspace, not the AMD installed tool tree:
 4. Guard the generated definition in `xplmi_modules.h` where needed.
 5. Retry the platform build once if the first attempt failed before the patch landed.
 
-That workaround is intentionally narrow. It is applied only under the generated Vitis workspace and only when user modules are requested.
+That workaround is intentionally narrow and is applied only when PLM user modules are requested.
 
 ## PLM source overlay
 
