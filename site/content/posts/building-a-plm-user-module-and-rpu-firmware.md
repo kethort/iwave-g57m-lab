@@ -113,6 +113,10 @@ The lab stays pinned to 2025.2 because the current iWave G57M manufacturer BSP a
 
 The symptom that identifies this specific problem is a compile failure in generated xilplmi headers around `XPLMI_USER_MODULE_START_INDEX`, before the custom user-module source itself is the meaningful failure point. If a future release builds without that failure, leave the generated headers alone and remove or disable the patch step for that build.
 
+The same failure path can appear without this lab automation. With the 2025.2 iWave BSP, even a PLM-oriented example driven directly from the Vitis IDE can trip the generated-header dependency loop while the IDE is building or programming through the generated platform. That is the important clue: the script is not creating a new PLM circular dependency. It is exposing the same generated BSP ordering problem that the IDE can encounter once PLM user-module support is involved.
+
+When this happens in the IDE, the useful evidence is not the active editor tab or the bare-metal example source. Look at the Vitis messages and generated `libsrc/xilplmi` paths. If the failure is in generated PLM/xilplmi files before application-specific code is the meaningful compile failure, treat it as this 2025.2 generated-workspace issue.
+
 The build script fixes the generated workspace, not the AMD installed tool tree:
 
 1. Set the `xilplmi` library parameter `XILPLMI_user_modules_count`.
