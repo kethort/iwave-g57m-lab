@@ -260,3 +260,9 @@ At that point, the board has moved out of the rapid development path and into a 
 | Linux kernel panics mounting root | `bootargs`, rootfs payload type, rootfs size, or `booti` ramdisk argument mismatch. |
 
 Do not debug these as one large "QSPI failed" problem. First prove U-Boot can see the flash, then prove the bytes were written, then prove the saved environment selects the correct boot command, and only then debug the Linux handoff.
+
+## Next Experiment
+
+After the board can boot persistently from QSPI, the next step is to let Linux manage the RPU firmware with `remoteproc` and then attach the debugger to both the running RPU firmware and the PLM/PPU user module.
+
+[Continue to Experiment 007: Deploying RPU Firmware with remoteproc and Debugging PPU/RPU ->]({{< ref "/posts/deploying-rpu-firmware-with-remoteproc-and-debugging-ppu-rpu" >}})

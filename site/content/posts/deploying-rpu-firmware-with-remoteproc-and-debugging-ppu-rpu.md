@@ -156,7 +156,7 @@ For this run, the RPU firmware was not copied by hand from an interactive shell.
   /home/user/vitis_projects/secure-boot/plm/build/rpu_ipi_ping_pong/build/rpu_ipi_ping_pong.elf
 ```
 
-The script performs the normal Linux `remoteproc` sequence over SSH:
+The script performs the normal Linux `remoteproc` sequence over SSH. In start/deploy mode it:
 
 1. Resolve the local ELF and optional `main` breakpoint address.
 2. Refresh or scan the board SSH host key.
@@ -197,6 +197,58 @@ rpu_ipi_ping_pong.elf
 ```
 
 The important proof is the final state and firmware readback. Linux accepted the ELF, associated it with `/sys/class/remoteproc/remoteproc0`, started the RPU, and reported the firmware name that is now running.
+
+The same helper can stop the RPU without copying a new ELF:
+
+```bash
+./load_remoteproc_elf.sh --ip 192.168.0.137 --stop
+```
+
+The stop path leaves the selected firmware name intact but moves the remote processor offline:
+
+```text
+Refreshing SSH host key for 192.168.0.137...
+Scanning SSH host key...
+
+Stopping remoteproc...
+
+Remoteproc state:
+offline
+
+Remoteproc firmware:
+rpu_ipi_ping_pong.elf
+```
+
+The kernel reports the matching stop event:
+
+```text
+[ 6206.666144] remoteproc remoteproc0: stopped remote processor ffe00000.r5f
+```
+
+Starting the firmware through the script produces the matching kernel-side evidence:
+
+```text
+[ 6270.726039] remoteproc remoteproc0: powering up ffe00000.r5f
+[ 6270.732767] remoteproc remoteproc0: Booting fw image rpu_ipi_ping_pong.elf, size 870672
+```
+
+After the RPU firmware starts, the serial log shows the RPU and PLM exchanging IPI requests and responses. The useful proof is the counter relationship: the RPU sends `counter=N`, the PLM reports the request, then returns `value=N+1`, and the RPU ISR receives that value.
+
+```text
+RPU (Rust): TX counter=1 sequence=1 token=0x525855B1
+PLM IPI PING-PONG: received request #44 counter=1 sequence=1 token=0x525855B1
+PLM IPI PING-PONG: response status=0x00000000 value=2 sequence=1 token=0xF7FD0FEB, triggering RPU
+RPU (Rust): RX ISR #1 status=0x00000000 value=2 sequence=1 token=0xF7FD0FEB
+RPU (Rust): ping-pong #1 complete, reply=2
+
+RPU (Rust): TX counter=2 sequence=2 token=0x52405431
+PLM IPI PING-PONG: received request #45 counter=2 sequence=2 token=0x52405431
+PLM IPI PING-PONG: response status=0x00000000 value=3 sequence=2 token=0xF7E50E6B, triggering RPU
+RPU (Rust): RX ISR #2 status=0x00000000 value=3 sequence=2 token=0xF7E50E6B
+RPU (Rust): ping-pong #2 complete, reply=3
+```
+
+Because the PLM and RPU share the serial console, a few startup characters can interleave. The repeating request/response structure is the evidence to trust, not a perfectly formatted first line.
 
 The equivalent manual target-side flow is still useful for debugging the setup. Install the RPU ELF into the target root filesystem firmware directory. The exact filename can vary; the name written to the `firmware` sysfs file must match the file under `/lib/firmware`.
 
@@ -284,8 +336,10 @@ For a reproducible record, save:
 
 - the exact RPU ELF placed in `/lib/firmware`;
 - the `load_remoteproc_elf.sh` command line and output;
+- the `load_remoteproc_elf.sh --stop` output;
 - the `remoteproc` name, firmware, and state from sysfs;
 - `dmesg` lines showing the R5 remoteproc and IPI mailbox drivers binding;
+- serial evidence showing the RPU TX, PLM handler, PLM response, and RPU ISR receive path;
 - the Vitis launch configuration screenshots showing attach-to-running-target mode;
 - RPU and PLM symbol-loading screenshots;
 - the RPU source-level breakpoint screenshot;
