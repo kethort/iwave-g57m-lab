@@ -9,6 +9,12 @@ validation, generated command previews, and live execution logs.
 The public release contains a stripped Linux x86-64 executable and its container
 packaging. C++ and QML source code are maintained separately.
 
+This is an independent lab release. It is not affiliated with, sponsored by, or
+endorsed by iWave Systems, AMD, or Xilinx. Product names are used only to
+identify compatible hardware and tools. Vendor BSPs, licensed toolchains,
+schematics, private support material, and unreleased documentation are not
+redistributed here; obtain those directly from the respective vendors.
+
 <p align="center">
   <img src="docs/images/overview.png" alt="Versal Boot GUI JTAG workflow overview" width="100%">
 </p>
@@ -132,4 +138,5 @@ erase, write, or verification operation is active.
 
 The application dynamically links Qt. License texts and third-party notices are
 under [`LICENSES/`](LICENSES/). AMD Vitis is not redistributed; users provide
-their own licensed Vitis installation at runtime.
+their own licensed Vitis installation at runtime. Users are responsible for
+complying with vendor BSP, toolchain, and hardware documentation licenses.

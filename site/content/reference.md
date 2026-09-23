@@ -5,6 +5,8 @@ description = "Known-good G57M carrier connections and fast checks used at the b
 
 ## Platform baseline
 
+These references summarize the bench setup used in the experiments. They are not a substitute for the carrier hardware manual, SOM documentation, schematic package, or tool licenses supplied by the vendors.
+
 | Item | Known-good value |
 | --- | --- |
 | SOM | iWave G57M, Versal AI Edge VE2302 |

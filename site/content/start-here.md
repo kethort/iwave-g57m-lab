@@ -5,6 +5,8 @@ description = "Establish a safe, observable G57M baseline before changing boot f
 
 This notebook starts with an iWave G57M VE2302 SOM on the G57D R2.0 carrier. The goal is not merely to reach a Linux prompt. It is to make power, serial output, JTAG visibility, and each external connection independently testable.
 
+These are independent lab notes, not vendor documentation. Use the vendor's released BSPs, manuals, and licensed tools as the source of truth, and treat this site as a reproducible record of one bench setup.
+
 ## First power-up
 
 Start with iWave's [official getting-started procedure](https://iwave-global.com/knowledge-base/products/get-started-with-versal-ai-edge-prime-som-development-platform/). In particular:
