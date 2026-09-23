@@ -11,6 +11,34 @@ This experiment moves below Linux and U-Boot to test communication between the V
 
 The practical goal is not just to prove the IPI path. It is to make the PLM user-module build repeatable, because the Vitis 2025.2 generated BSP can fail when user modules are enabled unless its generated `xilplmi` headers are patched.
 
+## Preliminary: Versal boot and programmable cores
+
+It is tempting to describe this experiment as programming a third processor after Linux on the APU and firmware on the RPU. That is close enough for the lab workflow, but it needs one caveat: the PPU is not a general-purpose application processor in the same sense as the APU or RPU. The PPU is the PMC MicroBlaze that runs the Platform Loader and Manager, so user code reaches it by building a custom PLM with a registered user module.
+
+For this lab, the practical firmware domains are:
+
+| Domain | Processor | Typical software | User-programmable path |
+| --- | --- | --- | --- |
+| APU | Cortex-A72 cluster | TF-A, U-Boot, Linux | Normal Linux/U-Boot/application development. |
+| RPU | Cortex-R5 cluster | Bare-metal, RTOS, or remoteproc firmware | Vitis standalone app, Rust/C firmware, or Linux remoteproc deployment. |
+| PMC / PPU | MicroBlaze inside the PMC | PLM | Custom PLM build with `xilplmi` user modules. |
+| PSM | Platform management MicroBlaze | PSM firmware | Board/platform firmware component; usually treated as platform support, not as the application target for this lab. |
+
+So the PPU is the next interesting programmable control processor in this series, but not literally the last programmable processor-like block in every Versal design. There is also PSM firmware, and the programmable logic can contain additional MicroBlaze or custom soft processors. The distinction is useful: this experiment is about extending the boot and platform-management firmware path, not launching a normal standalone application on another user CPU.
+
+## Preliminary: SOM boot sequence
+
+The G57M boot flow is staged. Each stage proves enough hardware state to load the next one:
+
+1. **BootROM** runs from immutable on-chip ROM in the Versal device. It samples the boot mode pins selected by SW4, locates the boot source such as PS JTAG or QSPI, authenticates or validates the boot header as configured, and starts the platform boot image.
+2. **PLM** starts on the PMC PPU MicroBlaze. It owns early platform loading, device image processing, error handling, power-up sequencing, and handoff orchestration. In this experiment, the PLM also contains a custom user module.
+3. **PSM firmware** runs on the platform management controller side and handles platform-management services needed after the earliest boot stage.
+4. **TF-A / BL31** starts on the APU at EL3 and prepares the secure monitor environment used before non-secure software runs.
+5. **U-Boot** starts on the APU at EL2. It handles board-level boot policy, networking, scripts, FIT loading, QSPI commands, and Linux handoff.
+6. **Linux** starts on the APU. Linux may later load or manage RPU firmware through remoteproc, but this experiment can also package the RPU firmware directly into a PDI so PLM hands it off during boot.
+
+The custom PLM in this page therefore sits very early in the chain. If the PLM user module is wrong, the system may fail before U-Boot or Linux has any chance to report a normal software error.
+
 ## Inputs and boundaries
 
 | Input | Value |
