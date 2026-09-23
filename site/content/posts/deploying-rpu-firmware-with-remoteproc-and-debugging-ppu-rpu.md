@@ -141,9 +141,64 @@ CONFIG_ZYNQMP_POWER=y
 CONFIG_ZYNQMP_PM_DOMAINS=y
 ```
 
-## Deploy From Linux
+## Deploy From Linux With The Repo Script
 
-Install the RPU ELF into the target root filesystem firmware directory. The exact filename can vary; the name written to the `firmware` sysfs file must match the file under `/lib/firmware`.
+For this run, the RPU firmware was not copied by hand from an interactive shell. It was deployed from the host with the repo helper script:
+
+```bash
+./load_remoteproc_elf.sh \
+  --user root \
+  --password root \
+  --ip 192.168.0.137 \
+  --remoteproc /sys/class/remoteproc/remoteproc0 \
+  --firmware-name rpu_ipi_ping_pong.elf \
+  --no-breakpoint \
+  /home/user/vitis_projects/secure-boot/plm/build/rpu_ipi_ping_pong/build/rpu_ipi_ping_pong.elf
+```
+
+The script performs the normal Linux `remoteproc` sequence over SSH:
+
+1. Resolve the local ELF and optional `main` breakpoint address.
+2. Refresh or scan the board SSH host key.
+3. Copy the ELF to the board firmware directory.
+4. Stop the selected `remoteproc` instance.
+5. Select the firmware name.
+6. Start the RPU through Linux `remoteproc`.
+7. Read back the `state` and `firmware` files.
+
+This was the successful host-side output:
+
+```text
+Resolved main breakpoint from ELF: 0x000432c0
+Board:               root@192.168.0.137
+Local ELF:           /home/user/vitis_projects/secure-boot/plm/build/rpu_ipi_ping_pong/build/rpu_ipi_ping_pong.elf
+Firmware name:       rpu_ipi_ping_pong.elf
+Remoteproc instance: /sys/class/remoteproc/remoteproc0
+HW server:           TCP:127.0.0.1:3121
+Main breakpoint:     0x000432c0
+Refreshing SSH host key for 192.168.0.137...
+Scanning SSH host key...
+
+Skipping breakpoint setup
+
+Copying ELF to the board...
+
+Stopping remoteproc and installing firmware...
+Remoteproc state after stop:
+offline
+
+Starting firmware through remoteproc...
+
+Remoteproc state:
+running
+
+Remoteproc firmware:
+rpu_ipi_ping_pong.elf
+```
+
+The important proof is the final state and firmware readback. Linux accepted the ELF, associated it with `/sys/class/remoteproc/remoteproc0`, started the RPU, and reported the firmware name that is now running.
+
+The equivalent manual target-side flow is still useful for debugging the setup. Install the RPU ELF into the target root filesystem firmware directory. The exact filename can vary; the name written to the `firmware` sysfs file must match the file under `/lib/firmware`.
 
 ```bash
 cp rpu_ipi_ping_pong.elf /lib/firmware/
@@ -165,7 +220,7 @@ echo start > "$RPROC/state"
 cat "$RPROC/state"
 ```
 
-The expected state is `running`. If it fails before that, check the kernel log before changing the firmware:
+The expected state is `running`, matching the repo-script output above. If it fails before that, check the kernel log before changing the firmware:
 
 ```bash
 dmesg | tail -100
@@ -185,7 +240,7 @@ Both launch configurations use **Target Setup Mode: Attach to running target**. 
 
 After attaching, load symbols from the exact ELF that was used for the running firmware. This step maps addresses back to functions and source lines.
 
-{{< lab-figure src="images/rpu-manage-symbols.png" alt="Vitis manage symbols dialog for the RPU firmware" caption="RPU symbols must come from the same `rpu_ipi_ping_pong.elf` that Linux remoteproc loaded." >}}
+{{< lab-figure src="images/rpu-manage-symbols.png" alt="Vitis manage symbols dialog for the RPU firmware" caption="RPU symbols must come from the same `rpu_ipi_ping_pong.elf` that the repo script copied to the board and Linux remoteproc loaded." >}}
 
 {{< lab-figure src="images/plm-manage-symbols.png" alt="Vitis manage symbols dialog for the PLM firmware" caption="PLM symbols must come from the matching `plm.elf`; otherwise the PPU addresses will not resolve to the user-module source correctly." >}}
 
@@ -228,6 +283,7 @@ After the RPU sends the IPI command, the PPU stops in the PLM user-module handle
 For a reproducible record, save:
 
 - the exact RPU ELF placed in `/lib/firmware`;
+- the `load_remoteproc_elf.sh` command line and output;
 - the `remoteproc` name, firmware, and state from sysfs;
 - `dmesg` lines showing the R5 remoteproc and IPI mailbox drivers binding;
 - the Vitis launch configuration screenshots showing attach-to-running-target mode;
