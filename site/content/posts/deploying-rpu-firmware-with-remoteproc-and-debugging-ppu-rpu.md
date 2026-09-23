@@ -1,0 +1,240 @@
++++
+title = "Experiment 007: Deploying RPU Firmware with remoteproc and Debugging PPU/RPU"
+experiment = 7
+slug = "experiment-007-deploying-rpu-firmware-with-remoteproc-and-debugging-ppu-rpu"
+date = 2026-09-22T00:00:00-07:00
+description = "Load Cortex-R5 firmware from Linux with remoteproc, then attach Vitis to the running RPU and PLM/PPU firmware without resetting the board."
+tags = ["remoteproc", "RPU", "PLM", "PPU", "Vitis", "XSDB"]
+categories = ["Board Bring-Up"]
++++
+
+This experiment turns the PLM/RPU firmware build from the previous note into a runtime workflow. Linux owns the board after boot, `remoteproc` loads the RPU firmware, and Vitis attaches to the already-running RPU and PPU/PLM state for debug.
+
+The important distinction is that this is not a clean-room Vitis launch that resets the target. The debugger configuration is set to **Attach to running target**. That lets the lab prove the firmware that actually booted or was loaded by Linux is the firmware being inspected.
+
+## What This Proves
+
+There are three separate claims to verify:
+
+| Claim | Evidence |
+| --- | --- |
+| Linux can manage the RPU | `remoteproc` exposes an R5 device, accepts an ELF from `/lib/firmware`, and reports a running state. |
+| The RPU firmware is inspectable | Vitis attaches to the RPU, loads symbols from the matching ELF, and stops at a source-level breakpoint. |
+| The PLM user module is inspectable | Vitis/XSDB attaches to the running PPU/PLM image, loads PLM symbols, and stops on a hardware breakpoint in the PLM command handler. |
+
+That combination matters. Serial logs prove the path ran once; debugger attachment proves the running processors can be inspected at the point where the PLM user module and RPU firmware interact.
+
+## Device Tree Requirements
+
+Linux `remoteproc` does not discover the RPU firmware layout on its own. The Linux DTB must describe the R5 subsystem, the memory that Linux must not allocate, and the IPI mailboxes used for notifications.
+
+In this build, the relevant overlay is in `sources/meta-iwave/recipes-bsp/device-tree/files/system-user.dtsi`.
+
+The reserved-memory section protects the RPU firmware image area and the RPMsg vrings/buffer pool:
+
+```dts
+reserved-memory {
+    #address-cells = <2>;
+    #size-cells = <2>;
+    ranges;
+
+    rproc_0_fw_image: rpu@40000 {
+        no-map;
+        reg = <0x0 0x00040000 0x0 0x00100000>;
+    };
+
+    rpu0vdev0vring0: rpu0vdev0vring0@3ed40000 {
+        no-map;
+        reg = <0x0 0x3ed40000 0x0 0x4000>;
+    };
+
+    rpu0vdev0vring1: rpu0vdev0vring1@3ed44000 {
+        no-map;
+        reg = <0x0 0x3ed44000 0x0 0x4000>;
+    };
+
+    rpu0vdev0buffer: rpu0vdev0buffer@3ed48000 {
+        no-map;
+        compatible = "shared-dma-pool";
+        reg = <0x0 0x3ed48000 0x0 0x100000>;
+    };
+};
+```
+
+The R5F subsystem node binds the Xilinx R5 remoteproc driver and connects the R5 core to those memory regions:
+
+```dts
+r5fss@ffe00000 {
+    compatible = "xlnx,versal-r5fss";
+    xlnx,cluster-mode = <0>;
+    xlnx,tcm-mode = <0>;
+    #address-cells = <2>;
+    #size-cells = <2>;
+    ranges = <0x0 0x00000000 0x0 0xffe00000 0x0 0x10000>,
+             <0x0 0x00020000 0x0 0xffe20000 0x0 0x10000>;
+    status = "okay";
+
+    r5f@0 {
+        compatible = "xlnx,versal-r5f";
+        reg = <0x0 0x00000000 0x0 0x10000>,
+              <0x0 0x00020000 0x0 0x10000>;
+        reg-names = "atcm0", "btcm0";
+        power-domains = <&versal_firmware 0x18110005>,
+                        <&versal_firmware 0x1831800b>,
+                        <&versal_firmware 0x1831800c>;
+        memory-region = <&rproc_0_fw_image>,
+                        <&rpu0vdev0buffer>,
+                        <&rpu0vdev0vring0>,
+                        <&rpu0vdev0vring1>;
+        mboxes = <&ipi_0_to_ipi_1 0>, <&ipi_0_to_ipi_1 1>;
+        mbox-names = "tx", "rx";
+        status = "okay";
+    };
+};
+```
+
+The IPI mailbox nodes expose the APU-to-RPU and RPU-to-APU interrupt/message path:
+
+```dts
+&amba {
+    ipi0: mailbox@ff330000 {
+        compatible = "xlnx,versal-ipi-mailbox";
+        interrupt-parent = <&gic>;
+        interrupts = <0 30 4>;
+        reg = <0x0 0xff330000 0x0 0x10000
+               0x0 0xff3f0400 0x0 0x200>;
+        xlnx,ipi-id = <2>;
+        reg-names = "ctrl", "msg";
+        status = "okay";
+
+        ipi_0_to_ipi_1: child@ff340000 {
+            compatible = "xlnx,versal-ipi-dest-mailbox";
+            #mbox-cells = <1>;
+            xlnx,ipi-id = <3>;
+            reg = <0x0 0xff340000 0x0 0x10000
+                   0x0 0xff3f0600 0x0 0x200>;
+            reg-names = "ctrl", "msg";
+        };
+    };
+};
+```
+
+The ELF linker script, the `reserved-memory` ranges, and any RPMsg resource table must agree. If the RPU ELF loads a segment outside TCM or the declared DDR firmware region, Linux may reject the firmware or overwrite memory the RPU expects to own.
+
+## Kernel Configuration
+
+The kernel also needs the firmware loader, mailbox, remoteproc, power-domain, and RPMsg support enabled:
+
+```text
+CONFIG_FW_LOADER=y
+CONFIG_MAILBOX=y
+CONFIG_ZYNQMP_IPI_MBOX=y
+CONFIG_REMOTEPROC=y
+CONFIG_XLNX_R5_REMOTEPROC=y
+CONFIG_RPMSG=y
+CONFIG_RPMSG_CHAR=m
+CONFIG_RPMSG_CTRL=m
+CONFIG_RPMSG_NS=y
+CONFIG_RPMSG_VIRTIO=y
+CONFIG_RPMSG_VIRTIO_BUF_SIZE=512
+CONFIG_ZYNQMP_POWER=y
+CONFIG_ZYNQMP_PM_DOMAINS=y
+```
+
+## Deploy From Linux
+
+Install the RPU ELF into the target root filesystem firmware directory. The exact filename can vary; the name written to the `firmware` sysfs file must match the file under `/lib/firmware`.
+
+```bash
+cp rpu_ipi_ping_pong.elf /lib/firmware/
+
+dmesg | grep -Ei 'remoteproc|r5|rpu|ipi|mailbox|rpmsg|virtio|firmware'
+ls -l /sys/class/remoteproc/
+cat /sys/class/remoteproc/remoteproc*/name
+cat /sys/class/remoteproc/remoteproc*/state
+```
+
+Then load and start the RPU firmware:
+
+```bash
+RPROC=/sys/class/remoteproc/remoteproc0
+
+echo stop > "$RPROC/state" 2>/dev/null || true
+echo rpu_ipi_ping_pong.elf > "$RPROC/firmware"
+echo start > "$RPROC/state"
+cat "$RPROC/state"
+```
+
+The expected state is `running`. If it fails before that, check the kernel log before changing the firmware:
+
+```bash
+dmesg | tail -100
+```
+
+The most common failures are an ELF load address outside the DTS memory regions, a missing `/lib/firmware` file, a missing remoteproc driver, or an IPI/mailbox node that did not bind.
+
+## Attach Vitis Without Resetting
+
+Both launch configurations use **Target Setup Mode: Attach to running target**. This is the critical setting: the debugger connects to the current processor state and does not reset or initialize the board first.
+
+{{< lab-figure src="images/rpu-debug-config.png" alt="Vitis RPU launch configuration set to attach to running target" caption="RPU launch configuration. The debugger attaches to the running Cortex-R5 target rather than resetting the board." >}}
+
+{{< lab-figure src="images/plm-debug-config.png" alt="Vitis PLM launch configuration set to attach to running target" caption="PLM launch configuration. The same attach-to-running-target mode is used for the PPU/PLM context." >}}
+
+## Load Symbols
+
+After attaching, load symbols from the exact ELF that was used for the running firmware. This step maps addresses back to functions and source lines.
+
+{{< lab-figure src="images/rpu-manage-symbols.png" alt="Vitis manage symbols dialog for the RPU firmware" caption="RPU symbols must come from the same `rpu_ipi_ping_pong.elf` that Linux remoteproc loaded." >}}
+
+{{< lab-figure src="images/plm-manage-symbols.png" alt="Vitis manage symbols dialog for the PLM firmware" caption="PLM symbols must come from the matching `plm.elf`; otherwise the PPU addresses will not resolve to the user-module source correctly." >}}
+
+## Debug The RPU From The Gutter
+
+With RPU symbols loaded, source-level breakpoints can be placed directly in the editor gutter. This is the normal application-debug path: set the breakpoint, resume, trigger the IPI transaction, and confirm the RPU stops where expected.
+
+{{< lab-figure src="images/rpu-debug-at-gutter.png" alt="Vitis stopped at an RPU source breakpoint set from the gutter" caption="The RPU can stop at a source-level gutter breakpoint after remoteproc starts the firmware and Vitis attaches to the running target." >}}
+
+## Debug The PPU/PLM With A Hardware Breakpoint
+
+The PLM case is different. The PPU is already running platform-management firmware, and a normal source gutter breakpoint may not be the reliable path. For this run, the breakpoint address was resolved from the PLM ELF and then installed as a hardware breakpoint from the XSDB console.
+
+First find the PLM command handler address:
+
+```bash
+/development/2025.2/Vitis/gnu/microblaze/lin/bin/mb-nm \
+  -n plm/build/plm/build/plm.elf \
+  | grep XPlm_IpiPingCommandHandler
+```
+
+The symbol resolved to:
+
+```text
+f0240390 t XPlm_IpiPingCommandHandler
+```
+
+Then set a hardware breakpoint in XSDB:
+
+```tcl
+bpadd -addr 0xf0240390 -type hw
+```
+
+After the RPU sends the IPI command, the PPU stops in the PLM user-module handler:
+
+{{< lab-figure src="images/plm-stopped-at-breakpoint.png" alt="Vitis stopped in PLM after XSDB hardware breakpoint at XPlm_IpiPingCommandHandler" caption="The PPU/PLM debug proof: symbols are loaded from `plm.elf`, XSDB installs a hardware breakpoint at the command-handler address, and the running PLM stops when the RPU triggers the IPI path." >}}
+
+## What To Capture
+
+For a reproducible record, save:
+
+- the exact RPU ELF placed in `/lib/firmware`;
+- the `remoteproc` name, firmware, and state from sysfs;
+- `dmesg` lines showing the R5 remoteproc and IPI mailbox drivers binding;
+- the Vitis launch configuration screenshots showing attach-to-running-target mode;
+- RPU and PLM symbol-loading screenshots;
+- the RPU source-level breakpoint screenshot;
+- the `mb-nm` output used to resolve the PLM handler address;
+- the XSDB `bpadd -addr ... -type hw` command;
+- the PLM stopped-at-breakpoint screenshot.
+
+This evidence closes the loop: Linux can deploy the RPU firmware, Vitis can inspect the RPU at source level, and XSDB can stop the running PLM user module at the exact command handler that services the RPU request.
