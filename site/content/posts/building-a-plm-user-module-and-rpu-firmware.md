@@ -117,6 +117,8 @@ The same failure path can appear without this lab automation. With the 2025.2 iW
 
 When this happens in the IDE, the useful evidence is not the active editor tab or the bare-metal example source. Look at the Vitis messages and generated `libsrc/xilplmi` paths. If the failure is in generated PLM/xilplmi files before application-specific code is the meaningful compile failure, treat it as this 2025.2 generated-workspace issue.
 
+{{< lab-figure src="images/vitis-2025-2-PLM-bsp-bug.png" alt="Vitis IDE 2025.2 showing generated PLM source and xilplmi build errors" caption="Vitis IDE 2025.2 can hit the same generated PLM/xilplmi dependency problem from an IDE-driven PLM workflow. The failure is in the generated BSP workspace, not in the user module source." >}}
+
 The build script fixes the generated workspace, not the AMD installed tool tree:
 
 1. Set the `xilplmi` library parameter `XILPLMI_user_modules_count`.
