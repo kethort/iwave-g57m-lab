@@ -1,5 +1,6 @@
 +++
 title = "Experiment 002: Deploying a Full JTAG PDI with the Boot GUI"
+experiment = 2
 date = 2026-09-21T00:00:00-07:00
 description = "Package the Versal firmware chain and Linux FIT into a temporary PDI, then load and boot it over JTAG with Bootgen, XSDB, and the Versal Boot GUI."
 tags = ["JTAG", "PDI", "Bootgen", "XSDB", "Qt"]

@@ -1,5 +1,6 @@
 +++
 title = "Experiment 001: Building the iWave PetaLinux Baseline"
+experiment = 1
 date = 2026-09-20T00:00:00-07:00
 description = "Reproduce the G57M boot firmware, U-Boot, Linux, device tree, root filesystem, and deploy artifacts from the iWave Yocto BSP."
 tags = ["PetaLinux", "Yocto", "BitBake", "iWave", "Build"]

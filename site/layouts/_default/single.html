@@ -1,1 +1,42 @@
-{{ define "main" }}<article class="article-shell"><header class="article-head"><p class="eyebrow">{{ with .Section }}{{ upper . }} / {{ end }}{{ with .Date }}{{ .Format "2006.01.02" }}{{ end }}</p><h1>{{ .Title }}</h1><p class="lede">{{ .Description }}</p>{{ with .Params.tags }}<div class="tags">{{ range . }}<span>{{ . }}</span>{{ end }}</div>{{ end }}</header><div class="article-grid"><aside>{{ if gt (len .TableOfContents) 32 }}<p>ON THIS PAGE</p>{{ .TableOfContents }}{{ end }}</aside><div class="prose">{{ .Content }}</div></div></article>{{ end }}
+{{ define "main" }}
+<article class="article-shell">
+  <header class="article-head">
+    <p class="eyebrow">{{ with .Section }}{{ upper . }} / {{ end }}{{ with .Date }}{{ .Format "2006.01.02" }}{{ end }}</p>
+    <h1>{{ .Title }}</h1>
+    <p class="lede">{{ .Description }}</p>
+    {{ with .Params.tags }}<div class="tags">{{ range . }}<span>{{ . }}</span>{{ end }}</div>{{ end }}
+  </header>
+  <div class="article-grid">
+    <aside>
+      {{ if gt (len .TableOfContents) 32 }}
+        <p>ON THIS PAGE</p>
+        {{ .TableOfContents }}
+      {{ end }}
+      {{ with .Params.experiment }}
+        {{ $current := $ }}
+        {{ $experiments := sort (where (where site.RegularPages "Section" "posts") "Params.experiment" "!=" nil) "Params.experiment" "asc" }}
+        {{ $prev := false }}
+        {{ $next := false }}
+        {{ range $index, $page := $experiments }}
+          {{ if eq $page.RelPermalink $current.RelPermalink }}
+            {{ if gt $index 0 }}{{ $prev = index $experiments (sub $index 1) }}{{ end }}
+            {{ if lt (add $index 1) (len $experiments) }}{{ $next = index $experiments (add $index 1) }}{{ end }}
+          {{ end }}
+        {{ end }}
+        {{ if or $prev $next }}
+          <div class="experiment-nav" aria-label="Experiment navigation">
+            <p>EXPERIMENT FLOW</p>
+            {{ with $prev }}
+              <a class="experiment-link prev" href="{{ .RelPermalink }}"><span>Previous</span><strong>{{ .Title }}</strong></a>
+            {{ end }}
+            {{ with $next }}
+              <a class="experiment-link next" href="{{ .RelPermalink }}"><span>Next</span><strong>{{ .Title }}</strong></a>
+            {{ end }}
+          </div>
+        {{ end }}
+      {{ end }}
+    </aside>
+    <div class="prose">{{ .Content }}</div>
+  </div>
+</article>
+{{ end }}

@@ -1,5 +1,6 @@
 +++
 title = "Experiment 003: Teaching a Passive FMC Breakout to Identify Itself"
+experiment = 3
 slug = "teaching-a-passive-fmc-breakout-to-identify-itself"
 date = 2026-09-22T00:00:00-07:00
 description = "Bring up the iWave G57M safely, add an AT24C64 FMC FRU, preserve JTAG continuity, and prove that the carrier selected the intended 1.2 V VADJ rail."

@@ -1,5 +1,6 @@
 +++
 title = "Experiment 004: Building a PLM User Module and RPU Firmware"
+experiment = 4
 date = 2026-09-22T00:00:00-07:00
 description = "Generate a custom Versal PLM with an IPI user module, build matching Cortex-R5 firmware, and work around the Vitis 2025.2 xilplmi user-module header bug."
 tags = ["PLM", "RPU", "IPI", "Vitis", "Bootgen"]

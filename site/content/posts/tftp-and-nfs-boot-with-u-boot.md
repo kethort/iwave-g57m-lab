@@ -1,5 +1,6 @@
 +++
 title = "Experiment 005: Deploying Linux with TFTP and NFS"
+experiment = 5
 date = 2026-09-22T00:00:00-07:00
 description = "Set up host TFTP and NFS services, boot the G57M over the network, and configure U-Boot so FIT, component TFTP, or NFS-root flows can run automatically."
 tags = ["TFTP", "NFS", "U-Boot", "PetaLinux", "Networking"]
