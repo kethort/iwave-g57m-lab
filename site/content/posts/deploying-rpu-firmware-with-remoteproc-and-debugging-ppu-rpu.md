@@ -143,9 +143,17 @@ CONFIG_ZYNQMP_PM_DOMAINS=y
 
 ## Deploy From Linux With The Repo Script
 
-For this run, the RPU firmware was not copied by hand from an interactive shell. It was deployed from the host with the repo helper script:
+For this run, the RPU firmware was not copied by hand from an interactive shell. It was deployed from the host with the repo helper script at:
+
+```text
+/development/xilinx-dev/iwg57m-2025-2/scripts/load_remoteproc_elf.sh
+```
+
+The command was run from the `scripts/` directory:
 
 ```bash
+cd /development/xilinx-dev/iwg57m-2025-2/scripts
+
 ./load_remoteproc_elf.sh \
   --user root \
   --password root \
@@ -156,15 +164,43 @@ For this run, the RPU firmware was not copied by hand from an interactive shell.
   /home/user/vitis_projects/secure-boot/plm/build/rpu_ipi_ping_pong/build/rpu_ipi_ping_pong.elf
 ```
 
+The positional argument at the end is the **local RPU ELF** built by the PLM/RPU firmware project. The `--firmware-name` option is the name that the script installs on the board under `/lib/firmware/` and then writes into the Linux `remoteproc` firmware selector.
+
+The important options in this run were:
+
+| Option | Meaning in this run |
+| --- | --- |
+| `--ip 192.168.0.137` | SSH target address of the booted Linux system on the G57M. |
+| `--user root --password root` | Login used by the helper for SSH, SCP, and remote `sudo`. |
+| `--remoteproc /sys/class/remoteproc/remoteproc0` | The Linux remoteproc instance controlling the R5 firmware. |
+| `--firmware-name rpu_ipi_ping_pong.elf` | The filename copied to `/lib/firmware/` and selected through `remoteproc0/firmware`. |
+| `--no-breakpoint` | Skip the script's optional XSDB hardware-breakpoint setup. Vitis attachment is handled separately later in this page. |
+| ELF path | The local file copied to the board before `remoteproc` starts it. |
+
 The script performs the normal Linux `remoteproc` sequence over SSH. In start/deploy mode it:
 
 1. Resolve the local ELF and optional `main` breakpoint address.
-2. Refresh or scan the board SSH host key.
-3. Copy the ELF to the board firmware directory.
-4. Stop the selected `remoteproc` instance.
-5. Select the firmware name.
-6. Start the RPU through Linux `remoteproc`.
-7. Read back the `state` and `firmware` files.
+2. Refresh or scan the board SSH host key in `~/.ssh/known_hosts`.
+3. Copy the local ELF to the board with `scp`.
+4. Stop the selected `remoteproc` instance by writing `stop` to `remoteproc0/state`.
+5. Copy the uploaded ELF into `/lib/firmware/rpu_ipi_ping_pong.elf`.
+6. Select the firmware by writing `rpu_ipi_ping_pong.elf` to `remoteproc0/firmware`.
+7. Start the RPU by writing `start` to `remoteproc0/state`.
+8. Read back the `state` and `firmware` files.
+
+Internally, the remote side of the start path is equivalent to:
+
+```sh
+echo stop > /sys/class/remoteproc/remoteproc0/state 2>/dev/null || true
+cp /tmp/rpu_ipi_ping_pong.elf /lib/firmware/rpu_ipi_ping_pong.elf
+chmod 0644 /lib/firmware/rpu_ipi_ping_pong.elf
+echo rpu_ipi_ping_pong.elf > /sys/class/remoteproc/remoteproc0/firmware
+echo start > /sys/class/remoteproc/remoteproc0/state
+cat /sys/class/remoteproc/remoteproc0/state
+cat /sys/class/remoteproc/remoteproc0/firmware
+```
+
+The script also has an optional debugger assist path. If `--no-breakpoint` is omitted, it starts or verifies `hw_server`, uses XSDB, selects `Cortex-R5 #0`, and installs a hardware breakpoint at the resolved or supplied address before starting the firmware. This run deliberately used `--no-breakpoint` because the debugger attach flow is shown separately below.
 
 This was the successful host-side output:
 
@@ -201,6 +237,8 @@ The important proof is the final state and firmware readback. Linux accepted the
 The same helper can stop the RPU without copying a new ELF:
 
 ```bash
+cd /development/xilinx-dev/iwg57m-2025-2/scripts
+
 ./load_remoteproc_elf.sh --ip 192.168.0.137 --stop
 ```
 
