@@ -171,9 +171,11 @@ The important evidence is:
 
 The `.2` suffix in `0x0000.2` is important: it explicitly selects the two-byte internal address used by the AT24C64.
 
-## PetaLinux and Yocto EEPROM type
+## PetaLinux, Yocto, and U-Boot EEPROM access
 
-The two-byte offset behavior is also controlled by the device tree that U-Boot receives from the PetaLinux/Yocto build. In this workspace, the FMC EEPROM node comes from:
+The two-byte offset behavior is controlled by both the device tree that U-Boot receives from the PetaLinux/Yocto build and the U-Boot board support code that reads the FMC FRU.
+
+In this workspace, the FMC EEPROM node comes from:
 
 ```text
 sources/meta-iwave/recipes-bsp/device-tree/files/system-user.dtsi
@@ -198,6 +200,23 @@ i2c@2 {
 ```
 
 For this experiment, the important property is `address-width = <16>;`. That is what matches the `i2c olen 50` result of `2` and the `i2c md 0x50 0x0000.2 ...` access form. If the hardware were changed to a one-byte-addressed EEPROM, the PetaLinux/Yocto device tree would need to be changed accordingly and U-Boot would need to be rebuilt with the updated DTB. Do not change only the Arduino programmer; U-Boot, the EEPROM part, and the FRU image access width must agree.
+
+There is also a C-side FRU reader added by the iWave U-Boot patch:
+
+```text
+sources/meta-iwave/recipes-bsp/u-boot/files/0001-iW-PRHRZ-SC-01-R2.2-REL1.0-SD2.0-UBoot25.01-Base.patch
+```
+
+That patch adds `drivers/misc/fru_eeprom.c`. The important call chain is:
+
+```text
+fmc_plus_power_sequence()
+  -> fmc_vadj_support(FMC_PLUS_I2C_BUS, FMC_PLUS_I2C_SLAVE_ADDR, vadj_volt)
+     -> read_fmc_eeprom(i2c_bus, chip_addr)
+        -> parse_FRU(fmc_eeprom_buf)
+```
+
+The same reader backs the `frudump` command used above. If the EEPROM type changes, audit both the device-tree node and this U-Boot FRU reader. The shell commands are the quickest sanity check: `i2c olen 50` should report the offset width U-Boot is actually using, `i2c md ...` should dump the expected header bytes, and `frudump 3 50` should still parse the same voltage records that `fmc_plus_power_sequence()` uses before enabling FMC power.
 
 ## Proof at boot
 
