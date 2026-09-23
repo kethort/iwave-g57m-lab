@@ -12,9 +12,9 @@
         <p>ON THIS PAGE</p>
         {{ .TableOfContents }}
       {{ end }}
+      {{ $experiments := sort (where (where site.RegularPages "Section" "posts") "Params.experiment" "!=" nil) "Params.experiment" "asc" }}
       {{ with .Params.experiment }}
         {{ $current := $ }}
-        {{ $experiments := sort (where (where site.RegularPages "Section" "posts") "Params.experiment" "!=" nil) "Params.experiment" "asc" }}
         {{ $prev := false }}
         {{ $next := false }}
         {{ range $index, $page := $experiments }}
@@ -44,6 +44,19 @@
               </a>
             {{ end }}
           </div>
+        {{ end }}
+      {{ else }}
+        {{ if eq .RelPermalink ("start-here/" | relURL) }}
+          {{ $next := cond (gt (len $experiments) 0) (index $experiments 0) false }}
+          {{ if $next }}
+            <div class="experiment-nav" aria-label="Experiment navigation">
+              <p>EXPERIMENT FLOW</p>
+              <a class="experiment-link next" href="{{ $next.RelPermalink }}">
+                <span>Next</span>
+                <strong>{{ $next.Title }}</strong>
+              </a>
+            </div>
+          {{ end }}
         {{ end }}
       {{ end }}
     </aside>

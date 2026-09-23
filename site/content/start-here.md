@@ -16,20 +16,12 @@ Start with iWave's [official getting-started procedure](https://iwave-global.com
 - select the intended boot mode at SW4 before applying power; see the [SW4 boot selection table]({{< ref "/reference#sw4-boot-selection" >}});
 - configure the console for 115200 baud, 8 data bits, no parity, one stop bit, and no flow control.
 
-## Experiment 001: reproduce the software baseline
+## First experiment
 
-Build the boot firmware, U-Boot, Linux kernel, device tree, and root filesystem from the iWave BSP. This entry maps the current `meta-iwave` changes, documents the supported build commands, and identifies the deploy artifacts.
+Begin by reproducing the software baseline. Build the boot firmware, U-Boot, Linux kernel, device tree, and root filesystem from the iWave BSP before changing PLM behavior, attaching extra hardware, or provisioning flash.
 
 [Build the G57M software baseline ->]({{< ref "/posts/building-the-iwave-petalinux-baseline" >}})
 
-## Experiment 002: deploy a Full JTAG PDI
+## Why this page stays short
 
-Package the Versal firmware chain, U-Boot, and a Linux FIT into one temporary PDI, then load it through the GUI using Bootgen and XSDB. This entry keeps the volatile JTAG path distinct from persistent QSPI provisioning.
-
-[Deploy a Full JTAG PDI ->]({{< ref "/posts/deploying-a-full-jtag-pdi-with-the-boot-gui" >}})
-
-## Experiment 003: identify a passive FMC card
-
-Turn a passive FMC LPC breakout into a carrier-recognized mezzanine by adding a VITA/IPMI FRU EEPROM. This entry also documents a less obvious requirement discovered at the bench: asserting FMC presence placed the empty FMC JTAG path in the scan chain, so the passive card required a TDI-to-TDO bypass.
-
-[Open the FMC FRU bring-up ->]({{< ref "/posts/fmc-fru-passive-breakout" >}})
+The lab notes page is the complete index. This page is only the safe entry point: confirm power, serial, JTAG visibility, and boot-mode switches, then move into the first reproducible build.
