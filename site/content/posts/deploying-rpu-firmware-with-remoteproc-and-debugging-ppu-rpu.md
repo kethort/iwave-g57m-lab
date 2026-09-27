@@ -367,22 +367,3 @@ bpadd -addr 0xf0240390 -type hw
 After the RPU sends the IPI command, the PPU stops in the PLM user-module handler:
 
 {{< lab-figure src="images/plm-stopped-at-breakpoint.png" alt="Vitis stopped in PLM after XSDB hardware breakpoint at XPlm_IpiPingCommandHandler" caption="The PPU/PLM debug proof: symbols are loaded from `plm.elf`, XSDB installs a hardware breakpoint at the command-handler address, and the running PLM stops when the RPU triggers the IPI path." >}}
-
-## What To Capture
-
-For a reproducible record, save:
-
-- the exact RPU ELF placed in `/lib/firmware`;
-- the `load_remoteproc_elf.sh` command line and output;
-- the `load_remoteproc_elf.sh --stop` output;
-- the `remoteproc` name, firmware, and state from sysfs;
-- `dmesg` lines showing the R5 remoteproc and IPI mailbox drivers binding;
-- serial evidence showing the RPU TX, PLM handler, PLM response, and RPU ISR receive path;
-- the Vitis launch configuration screenshots showing attach-to-running-target mode;
-- RPU and PLM symbol-loading screenshots;
-- the RPU source-level breakpoint screenshot;
-- the `mb-nm` output used to resolve the PLM handler address;
-- the XSDB `bpadd -addr ... -type hw` command;
-- the PLM stopped-at-breakpoint screenshot.
-
-This evidence closes the loop: Linux can deploy the RPU firmware, Vitis can inspect the RPU at source level, and XSDB can stop the running PLM user module at the exact command handler that services the RPU request.

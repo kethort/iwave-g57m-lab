@@ -1,6 +1,6 @@
 +++
-title = "Experiment 006: Persistent QSPI Boot with the Boot GUI"
-experiment = 6
+title = "Experiment 004: Persistent QSPI Boot with the Boot GUI"
+experiment = 4
 date = 2026-09-22T00:00:00-07:00
 description = "Provision the G57M QSPI flash so the board boots without JTAG, TFTP, or NFS after power-up."
 tags = ["QSPI", "U-Boot", "MTD", "Bootgen", "Boot GUI"]
@@ -260,9 +260,3 @@ At that point, the board has moved out of the rapid development path and into a 
 | Linux kernel panics mounting root | `bootargs`, rootfs payload type, rootfs size, or `booti` ramdisk argument mismatch. |
 
 Do not debug these as one large "QSPI failed" problem. First prove U-Boot can see the flash, then prove the bytes were written, then prove the saved environment selects the correct boot command, and only then debug the Linux handoff.
-
-## Next Experiment
-
-After the board can boot persistently from QSPI, the next step is to let Linux manage the RPU firmware with `remoteproc` and then attach the debugger to both the running RPU firmware and the PLM/PPU user module.
-
-[Continue to Experiment 007: Deploying RPU Firmware with remoteproc and Debugging PPU/RPU ->]({{< ref "/posts/deploying-rpu-firmware-with-remoteproc-and-debugging-ppu-rpu" >}})

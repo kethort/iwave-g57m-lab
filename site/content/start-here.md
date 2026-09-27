@@ -23,7 +23,3 @@ Start with iWave's [official getting-started procedure](https://iwave-global.com
 Begin by reproducing the software baseline. Build the boot firmware, U-Boot, Linux kernel, device tree, and root filesystem from the iWave BSP before changing PLM behavior, attaching extra hardware, or provisioning flash.
 
 [Build the G57M software baseline ->]({{< ref "/posts/building-the-iwave-petalinux-baseline" >}})
-
-## Why this page stays short
-
-The lab notes page is the complete index. This page is only the safe entry point: confirm power, serial, JTAG visibility, and boot-mode switches, then move into the first reproducible build.

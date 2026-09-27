@@ -1,6 +1,6 @@
 +++
-title = "Experiment 004: Building a PLM User Module and RPU Firmware"
-experiment = 4
+title = "Experiment 006: Building a PLM User Module and RPU Firmware"
+experiment = 6
 date = 2026-09-22T00:00:00-07:00
 description = "Generate a custom Versal PLM with an IPI user module, build matching Cortex-R5 firmware, and work around the Vitis 2025.2 xilplmi user-module header bug."
 tags = ["PLM", "RPU", "IPI", "Vitis", "Bootgen"]
@@ -168,46 +168,3 @@ The firmware expects:
 The Cargo build uses generated BSP bindings and links against the Vitis standalone BSP archives. If binding generation fails around `XPAR_XIPIPSU_0_BASEADDR`, regenerate or inspect the hardware platform. The RPU domain did not receive the expected IPI instance.
 
 The Rust package includes an optional minimal remoteproc resource table. The build script enables the `remoteproc` feature for Rust RPU builds, so Linux remoteproc can recognize the ELF even though this demo does not allocate RPMsg vrings or carveouts.
-
-## Evidence to capture
-
-For a useful lab record, save:
-
-- the Vitis version and XSA checksum;
-- the build command and complete script log;
-- the paths and checksums for `plm.elf`, `rpu_ipi_ping_pong.elf`, and any generated PDI;
-- Bootgen `-read` output for a combined PDI;
-- UART output showing PLM module registration and RPU ping-pong completion.
-
-The result to look for is repeated RPU messages showing a successful response interrupt and incremented counter, paired with PLM messages showing the user-module command handler receiving and responding to requests.
-
-The next step is to prove the same behavior from the debugger, not only from UART. Capture XSDB or Vitis debugger sessions that attach to the already-running PPU/PLM and RPU firmware without resetting the board. The useful evidence is:
-
-- the selected PPU and RPU targets in the debugger target list;
-- symbols loaded from the exact `plm.elf` and `rpu_ipi_ping_pong.elf` used to boot;
-- program counters, stack pointers, and key registers showing both processors in expected runtime state;
-- breakpoints or watchpoints in the PLM user-module command handler and the RPU IPI response path;
-- memory views of the IPI request and response buffers before and after a ping-pong transaction;
-- a log showing that attaching the debugger did not require rebuilding, reflashing, or restarting the system.
-
-That debugger capture is important because it separates "the firmware printed something once" from "the expected PPU and RPU code is alive, symbolized, inspectable, and synchronized while the system is running."
-
-## Publishing the firmware source
-
-The public source repo should contain the automation and maintained source only:
-
-```text
-README.md
-.gitignore
-plm/build-plm
-plm/src/common/xplm_ipi_ping_pong_module.c
-plm/src/common/xplm_ipi_ping_pong_module.h
-rpu-app/Cargo.toml
-rpu-app/Cargo.lock
-rpu-app/.cargo/config.toml
-rpu-app/bsp_bindings/
-rpu-app/rpu_ipi_ping_pong/src/main.rs
-rpu-app/rpu_ipi_ping_pong/src/remoteproc.rs
-```
-
-Do not publish generated workspaces, board-private XSA files, extracted vendor firmware, ELFs, PDIs, or serial logs unless they have been explicitly cleared for release.
