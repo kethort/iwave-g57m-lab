@@ -85,8 +85,8 @@ Required repositories:
 
 | Repo | Used for |
 | --- | --- |
-| [Versal Boot GUI lab repo](https://github.com/kethort/iwave-g57m-lab) | This experiment page and the `scripts/build-secure-boot-dev-pdi` helper. |
-| [PLM/RPU IPI demo firmware repo](https://github.com/kethort/iwave-g57m-plm-rpu-ipi-demo) | The custom PLM source, Rust RPU firmware, and generated Vitis workspace. |
+| [Versal Boot GUI lab repo](https://github.com/kethort/iwave-g57m-lab) | This experiment page and the surrounding lab documentation. |
+| [PLM/RPU IPI demo firmware repo](https://github.com/kethort/iwave-g57m-plm-rpu-ipi-demo) | The custom PLM source, Rust RPU firmware, generated Vitis workspace, and `scripts/build-secure-boot-dev-pdi` helper. |
 
 On this workstation, the firmware repo is currently checked out at:
 
@@ -119,16 +119,15 @@ find plm/build -type f \
 
 ### 2. Generate the authenticated development PDI
 
-Run the secure-boot helper from the lab repo:
+Run the secure-boot helper from the firmware repo:
 
 ```bash
-cd /home/user/development/xilinx-dev/iwg57m-2025-2/qt-boot-gui/docker-release
+cd /home/user/vitis_projects/secure-boot
 
-./scripts/build-secure-boot-dev-pdi \
-    --firmware-root /home/user/vitis_projects/secure-boot
+./scripts/build-secure-boot-dev-pdi
 ```
 
-The helper writes all private/generated output under:
+The helper writes all private/generated output under the firmware repo:
 
 ```text
 secure-boot-private/dev-auth/
@@ -221,7 +220,7 @@ Only do this after the unsigned PLM/RPU image has already booted successfully. S
 ```tcl
 connect -url TCP:127.0.0.1:3121
 targets -set -filter {name =~ "Versal*"}
-device program /home/user/development/xilinx-dev/iwg57m-2025-2/qt-boot-gui/docker-release/secure-boot-private/dev-auth/SECURE_DEV_PLM_RPU_JTAG.pdi
+device program /home/user/vitis_projects/secure-boot/secure-boot-private/dev-auth/SECURE_DEV_PLM_RPU_JTAG.pdi
 ```
 
 The useful UART evidence is the same as the PLM/RPU experiment: PLM starts, the custom user module registers, and the RPU ping-pong path runs. This JTAG test does not program QSPI and does not make the board secure-boot-only.
