@@ -6,3 +6,6 @@
 *.tar.gz
 *.tar.xz
 !qt_boot_gui
+
+# Private/generated secure-boot lab artifacts.
+secure-boot-private/

@@ -78,6 +78,33 @@ QSPI is persistent, but it is still reprogrammable. A bad QSPI image can normall
 
 This no-eFUSE variant is useful for examples because it proves the Bootgen flow, BIF structure, key handling discipline, image layout, and recovery process. It should not be described as production-enforced secure boot. Production secure boot depends on device security state, including eFUSE-backed key or policy configuration, so an attacker cannot simply replace both the image and the public key material.
 
+## Implemented No-eFUSE Helper
+
+The lab repo includes a helper for the first development image:
+
+```bash
+./scripts/build-secure-boot-dev-pdi \
+    --firmware-root /path/to/iwave-g57m-plm-rpu-ipi-demo
+```
+
+For this workstation, that firmware checkout is currently `/home/user/vitis_projects/secure-boot`; use that path when reproducing the local run.
+
+The helper consumes the already-built firmware artifacts:
+
+```text
+plm/build/platform/hw/sdt/system.pdi
+plm/build/plm/build/plm.elf
+plm/build/rpu_ipi_ping_pong/build/rpu_ipi_ping_pong.elf
+```
+
+It writes private output under this lab repo:
+
+```text
+secure-boot-private/dev-auth/
+```
+
+That private directory is ignored by Git. It contains the development signing keys, generated BIF, authenticated PDI, Bootgen readback log, and Bootgen verification log. The expected verification result is `BootHeader Signature Verified`, `SPK Signature Verified`, and `Partition Signature Verified` for the signed PLM/RPU partitions.
+
 ## Build Strategy
 
 Treat secure boot as a staged conversion:
