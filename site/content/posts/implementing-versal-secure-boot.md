@@ -8,7 +8,7 @@ tags = ["Secure Boot", "Bootgen", "QSPI", "PLM", "Versal"]
 categories = ["Board Bring-Up"]
 +++
 
-This experiment starts from the working unsigned boot flows and turns them into a secure-boot implementation path. The goal is not to publish keys or signed images. The goal is to make the boundary clear: which artifacts are public automation, which artifacts are private build inputs, and which board operations are reversible versus permanent.
+This experiment starts from the working unsigned boot flows and turns them into a secure-boot implementation path. The development-board goal is to create and test secure-boot-style images without programming eFUSEs or permanently changing the board security state. The goal is not to publish keys or signed images. The goal is to make the boundary clear: which artifacts are public automation, which artifacts are private build inputs, which tests are reversible, and which operations would make a permanent device-security change.
 
 The secure-boot work should happen only after the normal JTAG, QSPI, PLM, RPU, and remoteproc paths are already understood. Secure boot is a policy layer on top of that known-good boot chain. It should not be the first place to debug basic PDI construction, U-Boot handoff, QSPI layout, or PLM/RPU firmware behavior.
 
@@ -21,7 +21,7 @@ There are four separate claims to verify:
 | The unsigned boot chain is reproducible | The same PLM, PSM firmware, TF-A, U-Boot, handoff DTB, and Linux payloads boot before secure-boot attributes are added. |
 | Bootgen secure packaging is repeatable | The secure BIF is generated from documented inputs and can be rebuilt without manual GUI-only state. |
 | Private material stays private | Keys, XSA files, generated secure images, and provisioning logs are excluded from the public repo and site. |
-| The board can still be recovered | JTAG or another recovery path is proven before any irreversible key-programming or boot-policy change. |
+| The board can still be recovered | JTAG, QSPI reflash, or another recovery path is proven before any eFUSE or permanent security-state change. |
 
 ## Public And Private Boundary
 
@@ -63,6 +63,21 @@ Start with the same boot chain that already works without secure boot:
 
 The secure package should be built from known-good unsigned artifacts first. If the unsigned artifacts do not boot, secure boot will only make the failure harder to inspect.
 
+
+## Development Variant Without eFUSEs
+
+For a development board, the safe first variant is a no-eFUSE secure-boot exercise:
+
+1. Generate authentication keys in a private workspace.
+2. Build a signed or otherwise security-attributed Bootgen image from known-good inputs.
+3. Boot it through JTAG first.
+4. Program it to QSPI only after JTAG boot works.
+5. Keep the board in its normal development security state and do not program PPK hashes, AES key material, revocation bits, or other security-control eFUSEs.
+
+QSPI is persistent, but it is still reprogrammable. A bad QSPI image can normally be erased or replaced by returning to a JTAG boot/provisioning flow. The non-reversible boundary is not "using QSPI"; it is programming device security state such as eFUSE-backed root-of-trust settings or key material.
+
+This no-eFUSE variant is useful for examples because it proves the Bootgen flow, BIF structure, key handling discipline, image layout, and recovery process. It should not be described as production-enforced secure boot. Production secure boot depends on device security state, including eFUSE-backed key or policy configuration, so an attacker cannot simply replace both the image and the public key material.
+
 ## Build Strategy
 
 Treat secure boot as a staged conversion:
@@ -72,10 +87,10 @@ Treat secure boot as a staged conversion:
 3. Add authentication attributes to the BIF and verify Bootgen produces the expected secure image.
 4. Add encryption only after authenticated boot is understood and recoverable.
 5. Program temporary or recoverable boot media first.
-6. Move to persistent QSPI only after the secure image boots from the temporary path.
-7. Do not program irreversible device state until the recovery procedure has been tested and documented.
+6. Move to persistent QSPI only after the same image boots from the temporary path.
+7. Do not program eFUSEs or other permanent security state until the recovery procedure has been tested and documented.
 
-The first secure image should be a lab image, not the final production policy. Keep debug and recovery paths available until the secure boot chain has survived power cycles, cold boots, and intentionally bad-image tests.
+The first image should be a lab image, not the final production policy. Keep debug and recovery paths available until the boot chain has survived power cycles, cold boots, and intentionally bad-image tests.
 
 ## Bootgen Boundary
 
@@ -93,7 +108,7 @@ Do not commit the secure BIF if it exposes private key filenames, serial-numbere
 
 ## JTAG Validation First
 
-Before QSPI or irreversible provisioning, use JTAG to test the secure image in the least persistent way available. The test should answer:
+Before QSPI or any permanent provisioning, use JTAG to test the image in the least persistent way available. The test should answer:
 
 - Does BootROM accept the image header and authentication policy?
 - Does PLM start and produce expected UART output?
@@ -105,7 +120,7 @@ For failures, separate packaging errors from board-security-state errors. A Boot
 
 ## QSPI Validation
 
-After JTAG validation, repeat the test through QSPI using the same caution as the persistent-boot experiment:
+After JTAG validation, repeat the test through QSPI using the same caution as the persistent-boot experiment. This is still a reversible development-board step as long as no permanent security state is programmed:
 
 1. Write only to the intended QSPI offsets.
 2. Verify readback before changing boot mode.
@@ -113,11 +128,11 @@ After JTAG validation, repeat the test through QSPI using the same caution as th
 4. Boot from QSPI and confirm the same UART milestones.
 5. Keep a known-good recovery image and JTAG path available.
 
-At this stage, QSPI proves persistence. It does not by itself prove a final production trust policy. That proof depends on the device key state and the exact authentication/encryption configuration used by Bootgen.
+At this stage, QSPI proves persistence and recovery. It does not by itself prove a final production trust policy. That proof depends on the device key state and the exact authentication/encryption configuration used by Bootgen.
 
 ## Irreversible Device State
 
-Any step that programs eFUSEs or otherwise changes permanent device security state belongs at the end of the experiment, not the beginning. Before doing that, the lab should have:
+Any step that programs eFUSEs or otherwise changes permanent device security state belongs outside the no-eFUSE development example, or at the very end of a separate production-provisioning experiment. Before doing that, the lab should have:
 
 - a known-good secure image;
 - a known-good recovery process;
@@ -137,4 +152,4 @@ The public lab state is ready for secure-boot implementation planning:
 - RPU firmware can be deployed through Linux `remoteproc`;
 - PPU/RPU debugger attachment is understood.
 
-The remaining secure-boot work is to build the private key workspace, write the secure BIF or redacted template, generate the first authenticated image, and validate it through JTAG before moving to QSPI or any irreversible device provisioning.
+The remaining secure-boot work is to build the private key workspace, write the secure BIF or redacted template, generate the first authenticated image, validate it through JTAG, and then test the same image from reprogrammable QSPI without touching eFUSEs.
