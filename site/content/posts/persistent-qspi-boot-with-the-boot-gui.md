@@ -9,6 +9,8 @@ categories = ["Board Bring-Up"]
 
 This experiment moves from development boot flows into a persistent boot flow. The previous JTAG, TFTP, and NFS experiments were intentionally temporary: they were excellent for testing firmware, network settings, kernels, device trees, and userspace without committing those changes to flash. QSPI boot is different. It is the path to use when the board should power on, read its boot image from flash, and start Linux without the host pushing new payloads every time.
 
+**Required tool:** provisioning in this page uses the [Versal Boot GUI lab repo](https://github.com/kethort/iwave-g57m-lab). Clone it, confirm the container can see Vitis/XSDB and `hw_server`, and keep a JTAG recovery path available before writing QSPI.
+
 That makes QSPI useful for demos, regression baselines, handoff images, and bring-up checkpoints. It is not the fastest edit-test loop. If kernel, DTB, or userspace changes are still happening every few minutes, TFTP or NFS remains the better development workflow.
 
 ## What Changes In QSPI Boot

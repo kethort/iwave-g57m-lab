@@ -3,7 +3,7 @@ title = "Experiment 008: Implementing Versal Secure Boot"
 experiment = 8
 slug = "experiment-008-implementing-versal-secure-boot"
 date = 2026-09-27T00:00:00-07:00
-description = "Convert the working G57M boot chain into a secure-boot implementation plan, separating public automation from private keys, XSA files, and signed boot artifacts."
+description = "Build and verify a no-eFUSE authenticated Versal PDI from the PLM/RPU firmware artifacts while keeping keys and signed images private."
 tags = ["Secure Boot", "Bootgen", "QSPI", "PLM", "Versal"]
 categories = ["Board Bring-Up"]
 +++
@@ -63,7 +63,6 @@ Start with the same boot chain that already works without secure boot:
 
 The secure package should be built from known-good unsigned artifacts first. If the unsigned artifacts do not boot, secure boot will only make the failure harder to inspect.
 
-
 ## Development Variant Without eFUSEs
 
 For a development board, the safe first variant is a no-eFUSE secure-boot exercise:
@@ -78,18 +77,28 @@ QSPI is persistent, but it is still reprogrammable. A bad QSPI image can normall
 
 This no-eFUSE variant is useful for examples because it proves the Bootgen flow, BIF structure, key handling discipline, image layout, and recovery process. It should not be described as production-enforced secure boot. Production secure boot depends on device security state, including eFUSE-backed key or policy configuration, so an attacker cannot simply replace both the image and the public key material.
 
-## Implemented No-eFUSE Helper
+## Tutorial: Build A No-eFUSE Authenticated PDI
 
-The lab repo includes a helper for the first development image:
+This tutorial creates a signed development PDI without programming eFUSEs or changing the board security state. It signs the custom PLM and RPU partitions, enables Boot Header authentication metadata, and verifies the authentication certificates with Bootgen.
 
-```bash
-./scripts/build-secure-boot-dev-pdi \
-    --firmware-root /path/to/iwave-g57m-plm-rpu-ipi-demo
+Required repositories:
+
+| Repo | Used for |
+| --- | --- |
+| [Versal Boot GUI lab repo](https://github.com/kethort/iwave-g57m-lab) | This experiment page and the `scripts/build-secure-boot-dev-pdi` helper. |
+| [PLM/RPU IPI demo firmware repo](https://github.com/kethort/iwave-g57m-plm-rpu-ipi-demo) | The custom PLM source, Rust RPU firmware, and generated Vitis workspace. |
+
+On this workstation, the firmware repo is currently checked out at:
+
+```text
+/home/user/vitis_projects/secure-boot
 ```
 
-For this workstation, that firmware checkout is currently `/home/user/vitis_projects/secure-boot`; use that path when reproducing the local run.
+### 1. Build the unsigned PLM/RPU workspace first
 
-The helper consumes the already-built firmware artifacts:
+From the firmware repo, build the normal PLM/RPU artifacts exactly as in Experiment 006. The secure-boot helper consumes these generated files; it does not rebuild the Vitis workspace for you.
+
+The expected inputs are:
 
 ```text
 plm/build/platform/hw/sdt/system.pdi
@@ -97,86 +106,148 @@ plm/build/plm/build/plm.elf
 plm/build/rpu_ipi_ping_pong/build/rpu_ipi_ping_pong.elf
 ```
 
-It writes private output under this lab repo:
+Confirm they exist before continuing:
+
+```bash
+cd /home/user/vitis_projects/secure-boot
+find plm/build -type f \
+  \( -path '*/platform/hw/sdt/system.pdi' \
+     -o -path '*/plm/build/plm.elf' \
+     -o -path '*/rpu_ipi_ping_pong/build/rpu_ipi_ping_pong.elf' \) \
+  -print
+```
+
+### 2. Generate the authenticated development PDI
+
+Run the secure-boot helper from the lab repo:
+
+```bash
+cd /home/user/development/xilinx-dev/iwg57m-2025-2/qt-boot-gui/docker-release
+
+./scripts/build-secure-boot-dev-pdi \
+    --firmware-root /home/user/vitis_projects/secure-boot
+```
+
+The helper writes all private/generated output under:
 
 ```text
 secure-boot-private/dev-auth/
 ```
 
-That private directory is ignored by Git. It contains the development signing keys, generated BIF, authenticated PDI, Bootgen readback log, and Bootgen verification log. The expected verification result is `BootHeader Signature Verified`, `SPK Signature Verified`, and `Partition Signature Verified` for the signed PLM/RPU partitions.
+That directory is ignored by Git. It contains development signing keys, generated BIF files, the authenticated PDI, and Bootgen logs.
 
-## Build Strategy
+### 3. Inspect the generated BIF
 
-Treat secure boot as a staged conversion:
+The generated BIF is:
 
-1. Rebuild or collect the unsigned boot chain and prove it still boots over JTAG.
-2. Generate a non-secure BIF from the exact same inputs and confirm Bootgen can reproduce the known-good image.
-3. Add authentication attributes to the BIF and verify Bootgen produces the expected secure image.
-4. Add encryption only after authenticated boot is understood and recoverable.
-5. Program temporary or recoverable boot media first.
-6. Move to persistent QSPI only after the same image boots from the temporary path.
-7. Do not program eFUSEs or other permanent security state until the recovery procedure has been tested and documented.
+```text
+secure-boot-private/dev-auth/secure-dev-pdi.bif
+```
 
-The first image should be a lab image, not the final production policy. Keep debug and recovery paths available until the boot chain has survived power cycles, cold boots, and intentionally bad-image tests.
+The important pieces are:
 
-## Bootgen Boundary
+```text
+boot_config { bh_auth_enable }
+pskfile = ".../keys/primary.pem"
+sskfile = ".../keys/secondary.pem"
 
-Bootgen is the point where the normal boot image becomes a secure image. The BIF should be treated as source code for the boot policy. Keep it readable, versioned if it contains no secrets, and small enough to audit.
+partition
+{
+    type = bootloader
+    authentication = rsa
+    file = ".../plm.elf"
+}
 
-The local lab already uses Bootgen to rebuild PDIs from explicit inputs. Secure boot should extend that pattern rather than relying on hand-edited generated state. The secure BIF should make these choices explicit:
+partition
+{
+    core = r5-0
+    authentication = rsa
+    file = ".../rpu_ipi_ping_pong.elf"
+}
+```
 
-- which image or partitions are authenticated;
-- which partitions, if any, are encrypted;
-- where the PLM, PSM firmware, TF-A, U-Boot, handoff DTB, and Linux payloads enter the image;
-- which key files are referenced from the private workspace;
-- which output file is safe to program to the selected boot medium.
+This proves the example is applying authentication to the custom PLM and RPU firmware. The base design PDI is reused as a `type = bootimage` input so the secure-boot exercise stays close to the already-working PLM/RPU PDI flow.
 
-Do not commit the secure BIF if it exposes private key filenames, serial-numbered paths, or provisioning policy that should stay private. If the structure is useful publicly, publish a redacted template instead.
+### 4. Verify the authentication certificates
 
-## JTAG Validation First
+The helper runs `bootgen -verify` automatically. The verification log is:
 
-Before QSPI or any permanent provisioning, use JTAG to test the image in the least persistent way available. The test should answer:
+```text
+secure-boot-private/dev-auth/SECURE_DEV_PLM_RPU_JTAG.verify.txt
+```
 
-- Does BootROM accept the image header and authentication policy?
-- Does PLM start and produce expected UART output?
-- Does handoff reach TF-A and U-Boot?
-- Does Linux boot from the expected payload?
-- Can the board be reset and recovered if the image is rejected?
+The expected result is:
 
-For failures, separate packaging errors from board-security-state errors. A Bootgen failure is a host-side image construction issue. A BootROM authentication failure means the device rejected the image at boot time. A later U-Boot or Linux failure means secure boot likely succeeded and the normal boot chain failed later.
+```text
+Verifying Partition pmc_subsys.0
+    BootHeader Signature Verified
+    SPK Signature Verified
+    Partition Signature Verified
 
-## QSPI Validation
+Verifying Partition def_subsystem.0
+    SPK Signature Verified
+    Partition Signature Verified
 
-After JTAG validation, repeat the test through QSPI using the same caution as the persistent-boot experiment. This is still a reversible development-board step as long as no permanent security state is programmed:
+Verifying Partition def_subsystem.1
+    SPK Signature Verified
+    Partition Signature Verified
 
-1. Write only to the intended QSPI offsets.
-2. Verify readback before changing boot mode.
-3. Power off before changing SW4.
-4. Boot from QSPI and confirm the same UART milestones.
-5. Keep a known-good recovery image and JTAG path available.
+Authentication is verified on bootimage .../SECURE_DEV_PLM_RPU_JTAG.pdi
+```
 
-At this stage, QSPI proves persistence and recovery. It does not by itself prove a final production trust policy. That proof depends on the device key state and the exact authentication/encryption configuration used by Bootgen.
+If this step fails, fix the BIF, key paths, or input artifacts before trying to boot the image.
 
-## Irreversible Device State
+### 5. Inspect Bootgen readback
 
-Any step that programs eFUSEs or otherwise changes permanent device security state belongs outside the no-eFUSE development example, or at the very end of a separate production-provisioning experiment. Before doing that, the lab should have:
+The readback log is:
 
-- a known-good secure image;
-- a known-good recovery process;
-- a written key-backup and key-rotation plan;
-- a record of which boot modes remain allowed;
-- confirmation that the selected policy matches the board and silicon lifecycle state.
+```text
+secure-boot-private/dev-auth/SECURE_DEV_PLM_RPU_JTAG.read.txt
+```
 
-Do not use a development board as the first place to test an irreversible production policy. Prove the image construction and recovery workflow first.
+Useful checks are:
 
-## Current Status
+```bash
+rg -n 'bh_auth|auth_header|ac_offset|pmc_subsys|def_subsystem' \
+  secure-boot-private/dev-auth/SECURE_DEV_PLM_RPU_JTAG.read.txt
+```
 
-The public lab state is ready for secure-boot implementation planning:
+Look for `bh_auth [enabled]` and nonzero authentication-certificate offsets on the signed PLM/RPU partitions.
 
-- the baseline Linux boot artifacts have been reproduced;
-- JTAG and QSPI boot flows are documented;
-- custom PLM and RPU firmware builds are reproducible;
-- RPU firmware can be deployed through Linux `remoteproc`;
-- PPU/RPU debugger attachment is understood.
+### 6. Optional: load the PDI over JTAG
 
-The remaining secure-boot work is to build the private key workspace, write the secure BIF or redacted template, generate the first authenticated image, validate it through JTAG, and then test the same image from reprogrammable QSPI without touching eFUSEs.
+Only do this after the unsigned PLM/RPU image has already booted successfully. Set SW4 for PS JTAG, start `hw_server`, open a serial console, and program the generated PDI with XSDB:
+
+```tcl
+connect -url TCP:127.0.0.1:3121
+targets -set -filter {name =~ "Versal*"}
+device program /home/user/development/xilinx-dev/iwg57m-2025-2/qt-boot-gui/docker-release/secure-boot-private/dev-auth/SECURE_DEV_PLM_RPU_JTAG.pdi
+```
+
+The useful UART evidence is the same as the PLM/RPU experiment: PLM starts, the custom user module registers, and the RPU ping-pong path runs. This JTAG test does not program QSPI and does not make the board secure-boot-only.
+
+### 7. Keep the private artifacts private
+
+Before committing or publishing, verify that private output is ignored:
+
+```bash
+git check-ignore -v \
+  secure-boot-private/dev-auth/SECURE_DEV_PLM_RPU_JTAG.pdi \
+  secure-boot-private/dev-auth/keys/primary.pem
+```
+
+Do not publish:
+
+- `secure-boot-private/`;
+- private keys;
+- generated signed PDIs or BOOT images;
+- board-private XSA files;
+- eFUSE provisioning files or transcripts.
+
+## What This Does Not Do
+
+This tutorial does **not** program PPK hashes, AES key material, revocation bits, BBRAM, or any other irreversible device-security state. It is a no-eFUSE development flow that proves Bootgen authentication packaging and verification. Production-enforced secure boot is a separate provisioning step that depends on device security state, key policy, lifecycle assumptions, and recovery planning.
+
+## Next Steps
+
+After the JTAG PDI boots, the next reversible step is to adapt the same authenticated-image pattern to the QSPI provisioning flow. QSPI is persistent but recoverable; the irreversible boundary remains eFUSE or equivalent permanent security-state programming, not merely writing a new image to flash.

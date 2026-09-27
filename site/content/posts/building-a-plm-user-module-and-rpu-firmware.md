@@ -53,7 +53,7 @@ The same boot sequence is shown as a [Mermaid diagram in the reference page]({{<
 | PLM processor/domain | `psv_pmc_0` / `standalone_psv_pmc_0` |
 | RPU processor/domain | `psv_cortexr5_0` / `standalone_psv_cortexr5_0` |
 
-The public firmware source for this experiment is kept separate from generated Vitis output. XSA files, generated platforms, BSP products, ELFs, and PDIs are board-local artifacts and should not be treated as source.
+The public firmware source for this experiment is kept in the [PLM/RPU IPI demo repo](https://github.com/kethort/iwave-g57m-plm-rpu-ipi-demo), separate from generated Vitis output. XSA files, generated platforms, BSP products, ELFs, and PDIs are board-local artifacts and should not be treated as source.
 
 ## What is being built
 

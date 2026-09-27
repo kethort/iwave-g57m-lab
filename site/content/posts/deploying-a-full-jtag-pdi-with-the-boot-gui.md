@@ -9,6 +9,8 @@ categories = ["Board Bring-Up"]
 
 This experiment boots a complete Linux system over JTAG without writing QSPI. The Versal Boot GUI combines the firmware chain, U-Boot, a generated U-Boot script, and a Linux FIT into one temporary PDI. Bootgen packages the PDI; XSDB transfers it to the board through `hw_server`.
 
+**Required tool:** this workflow uses the [Versal Boot GUI lab repo](https://github.com/kethort/iwave-g57m-lab). Clone that repo, follow its container setup instructions, and launch the GUI before starting the steps below.
+
 {{< lab-figure src="images/jtag-boot-flow.png" alt="Full JTAG PDI generation and boot flow" >}}
 
 Everything loaded by this flow is volatile (resides in DDR memory). Resetting or removing power discards it. This operation does **not** erase, write, or otherwise provision QSPI.
