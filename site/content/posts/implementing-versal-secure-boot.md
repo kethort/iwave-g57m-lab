@@ -1,7 +1,7 @@
 +++
-title = "Experiment 008: Implementing Versal Secure Boot"
-experiment = 8
-slug = "experiment-008-implementing-versal-secure-boot"
+title = "Experiment 009: Implementing Versal Secure Boot"
+experiment = 9
+slug = "experiment-009-implementing-versal-secure-boot"
 date = 2026-09-27T00:00:00-07:00
 description = "Build and verify a no-eFUSE authenticated Versal PDI from the PLM/RPU firmware artifacts while keeping keys and signed images private."
 tags = ["Secure Boot", "Bootgen", "QSPI", "PLM", "Versal"]
@@ -10,7 +10,7 @@ categories = ["Board Bring-Up"]
 
 This experiment starts from the working unsigned boot flows and turns them into a secure-boot implementation path. The development-board goal is to create and test secure-boot-style images without programming eFUSEs or permanently changing the board security state. The goal is not to publish keys or signed images. The goal is to make the boundary clear: which artifacts are public automation, which artifacts are private build inputs, which tests are reversible, and which operations would make a permanent device-security change.
 
-The secure-boot work should happen only after the normal JTAG, QSPI, PLM, RPU, and remoteproc paths are already understood. Secure boot is a policy layer on top of that known-good boot chain. It should not be the first place to debug basic PDI construction, U-Boot handoff, QSPI layout, or PLM/RPU firmware behavior.
+The secure-boot work should happen only after the normal JTAG, QSPI, PLM, RPU, remoteproc, and DMA-backed PLM/RPU payload paths are already understood. Secure boot is a policy layer on top of that known-good boot chain. It should not be the first place to debug basic PDI construction, U-Boot handoff, QSPI layout, or PLM/RPU firmware behavior.
 
 ## What This Proves
 
