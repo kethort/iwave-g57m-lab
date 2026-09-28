@@ -10,6 +10,14 @@ categories = ["Board Bring-Up"]
 
 This experiment turns the PLM/RPU firmware build from the previous note into a runtime workflow. Linux owns the board after boot, `remoteproc` loads the RPU firmware, and Vitis attaches to the already-running RPU and PPU/PLM state for debug. The RPU ELF and matching PLM symbols come from the [PLM/RPU IPI demo firmware repo](https://github.com/kethort/iwave-g57m-plm-rpu-ipi-demo).
 
+Use firmware commit `a56ab9c` for this page. It is the IPI-message-buffer version of the PLM/RPU demo. The current `main` branch now contains the DMA-backed protocol documented in Experiment 008, so building `main` will not exactly match the logs and debugger flow below.
+
+```bash
+cd /home/user/vitis_projects/secure-boot
+git fetch origin
+git checkout a56ab9c40fcab1a2afc01d8b99f9b09cd20e54a9
+```
+
 The important distinction is that this is not a clean-room Vitis launch that resets the target. The debugger configuration is set to **Attach to running target**. That lets the lab prove the firmware that actually booted or was loaded by Linux is the firmware being inspected.
 
 ## What This Proves

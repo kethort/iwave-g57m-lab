@@ -55,6 +55,21 @@ The same boot sequence is shown as a [Mermaid diagram in the reference page]({{<
 
 The public firmware source for this experiment is kept in the [PLM/RPU IPI demo repo](https://github.com/kethort/iwave-g57m-plm-rpu-ipi-demo), separate from generated Vitis output. XSA files, generated platforms, BSP products, ELFs, and PDIs are board-local artifacts and should not be treated as source.
 
+This page documents the original IPI-message-buffer ping-pong protocol. Check out firmware commit `a56ab9c` before building it; later commits add the DMA-backed protocol covered in Experiment 008.
+
+```bash
+cd /home/user/vitis_projects/secure-boot
+git fetch origin
+git checkout a56ab9c40fcab1a2afc01d8b99f9b09cd20e54a9
+```
+
+To return to the newest firmware after reproducing this experiment:
+
+```bash
+git checkout main
+git pull --ff-only
+```
+
 ## What is being built
 
 The PLM user module registers a user module ID and a single API command. The RPU sends a counter over IPI to the PMC, triggers the PLM, and waits for the PLM to return an incremented value.
